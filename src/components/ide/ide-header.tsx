@@ -13,6 +13,7 @@ import {
   Home,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { SidebarTrigger } from "../ui/sidebar";
 
 interface IdeHeaderProps {
   children?: React.ReactNode;
@@ -39,6 +40,7 @@ export function IdeHeader({ children, className }: IdeHeaderProps) {
       )}
     >
       <div className="flex items-center gap-2">
+        <SidebarTrigger />
         <Button
           variant="outline"
           size="sm"

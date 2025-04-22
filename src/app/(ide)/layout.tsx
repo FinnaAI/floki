@@ -3,16 +3,33 @@ import { IdeHeader } from "@/components/ide/ide-header";
 import { GitStatusProvider, GitStatusBar } from "@/components/ide/git-status";
 import { FileProvider } from "@/components/ide/file-context";
 import type { ReactNode } from "react";
+import {
+  SidebarInset,
+  SidebarProvider,
+  SidebarTrigger,
+} from "@/components/ui/sidebar";
+import { IDESidebar } from "@/components/ide/ide-sidebar";
+import { cookies } from "next/headers";
 
-export default function IDELayout({ children }: { children: ReactNode }) {
+export default async function IDELayout({ children }: { children: ReactNode }) {
+  const cookieStore = await cookies();
+  const defaultOpen = cookieStore.get("sidebar_state")?.value === "true";
+
   return (
     <GitStatusProvider>
       <FileProvider>
         <IdeLayoutProvider>
-          <div className="flex h-screen flex-col">
+          <SidebarProvider className=" flex flex-col" defaultOpen={defaultOpen}>
             <IdeHeader />
-            {children}
-          </div>
+            <SidebarInset>
+              <div className="flex flex-col">
+                <div className="flex flex-row">
+                  <IDESidebar />
+                  <div className="flex-1">{children}</div>
+                </div>
+              </div>
+            </SidebarInset>
+          </SidebarProvider>
         </IdeLayoutProvider>
       </FileProvider>
     </GitStatusProvider>
