@@ -1,14 +1,14 @@
 "use client";
 
-import React from "react";
 import { VsTerminal } from "@/components/terminal/VsTerminal";
+import React from "react";
 
 export default function VsTerminalPage() {
-  return (
-    <div className="container mx-auto p-4 h-screen">
-      <div className="h-[calc(100vh-8rem)]">
-        <VsTerminal />
-      </div>
-    </div>
-  );
+	return (
+		<div className="container mx-auto h-screen p-4">
+			<div className="h-[calc(100vh-8rem)]">
+				<VsTerminal />
+			</div>
+		</div>
+	);
 }

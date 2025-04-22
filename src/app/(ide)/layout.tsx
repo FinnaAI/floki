@@ -1,3 +1,3 @@
 export default function IDELayout({ children }: { children: React.ReactNode }) {
-  return <div className="flex flex-col h-screen">{children}</div>;
+	return <div className="flex h-screen flex-col">{children}</div>;
 }
