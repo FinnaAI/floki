@@ -25,21 +25,26 @@ export function useEnvVars() {
   const applyEnvVars = useCallback(
     (command: string): string => {
       let result = command;
-      envVars.forEach((env) => {
+      for (const env of envVars) {
         // Replace any instances of $KEY or ${KEY} with the value
         result = result.replace(
           new RegExp(`\\$${env.key}|\\$\{${env.key}\}`, "g"),
           env.value
         );
-      });
+      }
       return result;
     },
     [envVars]
   );
 
+  const removeEnvVar = useCallback((key: string) => {
+    setEnvVars((prev) => prev.filter((env) => env.key !== key));
+  }, []);
+
   return {
     envVars,
     addEnvVar,
     applyEnvVars,
+    removeEnvVar,
   };
 }

@@ -44,11 +44,11 @@ interface FileViewerProps {
 
 // Format file size for display
 const formatFileSize = (bytes: number): string => {
-  if (bytes < 1024) return bytes + " B";
-  else if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + " KB";
-  else if (bytes < 1024 * 1024 * 1024)
-    return (bytes / (1024 * 1024)).toFixed(1) + " MB";
-  else return (bytes / (1024 * 1024 * 1024)).toFixed(1) + " GB";
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  if (bytes < 1024 * 1024 * 1024)
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  return `${(bytes / (1024 * 1024 * 1024)).toFixed(1)} GB`;
 };
 
 const FileViewer = ({
@@ -196,7 +196,7 @@ const FileViewer = ({
         <div className="p-4">
           {loading ? (
             <div className="flex justify-center items-center h-24 text-slate-500">
-              <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-500 mr-2"></div>
+              <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-500 mr-2" />
               Loading...
             </div>
           ) : error ? (

@@ -317,8 +317,8 @@ if (!global.wsServerInitialized) {
         } else if (data.type === "input" && data.input) {
           // Send input to the process
           const proc = processes.get(sessionId);
-          if (proc && proc.stdin) {
-            proc.stdin.write(`${data.input}\n`);
+          if (proc) {
+            proc.stdin?.write(`${data.input}\n`);
           } else {
             // No active process - treat as a new command
             try {

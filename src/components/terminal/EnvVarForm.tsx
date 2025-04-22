@@ -1,75 +1,109 @@
 "use client";
 
 import { useState } from "react";
-import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { EnvVar } from "./useEnvVars";
+import { Trash } from "lucide-react";
+import { useEnvVars } from "./useEnvVars";
+import type { EnvVar } from "./useEnvVars";
 
 interface EnvVarFormProps {
-  envVars: EnvVar[];
-  onAddEnvVar: (key: string, value: string) => void;
-  onClose: () => void;
+  envVars?: EnvVar[];
+  onAddEnvVar?: (key: string, value: string) => void;
+  onRemoveEnvVar?: (key: string) => void;
+  onClose?: () => void;
 }
 
-export function EnvVarForm({ envVars, onAddEnvVar, onClose }: EnvVarFormProps) {
-  const [newEnvKey, setNewEnvKey] = useState("");
-  const [newEnvValue, setNewEnvValue] = useState("");
+export function EnvVarForm({
+  envVars: propEnvVars,
+  onAddEnvVar,
+  onRemoveEnvVar,
+  onClose,
+}: EnvVarFormProps) {
+  const [varName, setVarName] = useState("");
+  const [varValue, setVarValue] = useState("");
 
-  const handleAddEnvVar = () => {
-    if (newEnvKey.trim() && newEnvValue.trim()) {
-      onAddEnvVar(newEnvKey.trim(), newEnvValue.trim());
-      setNewEnvKey("");
-      setNewEnvValue("");
+  // Fallback to hook if props not provided
+  const {
+    envVars: hookEnvVars,
+    addEnvVar: hookAddEnvVar,
+    removeEnvVar: hookRemoveEnvVar,
+  } = useEnvVars();
+
+  const envVars = propEnvVars ?? hookEnvVars;
+  const addEnvVar = onAddEnvVar ?? hookAddEnvVar;
+  const removeEnvVar = onRemoveEnvVar ?? hookRemoveEnvVar;
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (varName && varValue) {
+      addEnvVar(varName, varValue);
+      setVarName("");
+      setVarValue("");
     }
   };
 
   return (
-    <div className="space-y-4">
-      <div className="grid gap-4">
+    <div className="p-4 space-y-4">
+      {envVars.length > 0 ? (
         <div className="space-y-2">
-          <Label htmlFor="envKey">Key</Label>
-          <Input
-            id="envKey"
-            value={newEnvKey}
-            onChange={(e) => setNewEnvKey(e.target.value)}
-            placeholder="OPENAI_API_KEY"
-          />
-        </div>
-
-        <div className="space-y-2">
-          <Label htmlFor="envValue">Value</Label>
-          <Input
-            id="envValue"
-            value={newEnvValue}
-            onChange={(e) => setNewEnvValue(e.target.value)}
-            placeholder="sk-..."
-          />
-        </div>
-      </div>
-
-      <Button onClick={handleAddEnvVar} className="w-full">
-        Add Variable
-      </Button>
-
-      <div className="pt-4 border-t border-gray-200 dark:border-gray-800">
-        <h4 className="text-sm font-medium mb-2">Current Variables:</h4>
-        {envVars.length === 0 ? (
-          <p className="text-sm text-gray-500">No environment variables set</p>
-        ) : (
-          <div className="bg-slate-950 rounded-md p-2 max-h-48 overflow-y-auto">
-            {envVars.map((env, i) => (
+          <div className="text-sm font-medium">Defined Variables:</div>
+          <div className="space-y-2">
+            {envVars.map(({ key, value }) => (
               <div
-                key={i}
-                className="py-1 border-b border-gray-800 last:border-0"
+                key={key}
+                className="flex items-center justify-between gap-2"
               >
-                <span className="font-mono text-yellow-500">{env.key}</span>=
-                <span className="font-mono text-green-500">{env.value}</span>
+                <div className="flex-1 truncate">
+                  <span className="font-mono text-sm">
+                    {key}={value}
+                  </span>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => removeEnvVar(key)}
+                  className="h-8 w-8"
+                >
+                  <Trash className="h-4 w-4" />
+                </Button>
               </div>
             ))}
           </div>
-        )}
-      </div>
+        </div>
+      ) : (
+        <div className="text-sm text-muted-foreground">
+          No environment variables defined yet.
+        </div>
+      )}
+
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <div className="grid gap-2">
+          <Label htmlFor="varName">Variable Name</Label>
+          <Input
+            id="varName"
+            value={varName}
+            onChange={(e) => setVarName(e.target.value)}
+            placeholder="VARIABLE_NAME"
+            className="font-mono"
+          />
+        </div>
+        <div className="grid gap-2">
+          <Label htmlFor="varValue">Variable Value</Label>
+          <Input
+            id="varValue"
+            value={varValue}
+            onChange={(e) => setVarValue(e.target.value)}
+            placeholder="value"
+          />
+        </div>
+        <div className="flex justify-between">
+          <Button type="submit" disabled={!varName || !varValue}>
+            Add Variable
+          </Button>
+        </div>
+      </form>
     </div>
   );
 }

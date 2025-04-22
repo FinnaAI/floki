@@ -40,6 +40,7 @@ import {
 } from "lucide-react";
 import path from "path";
 import { Terminal } from "@/components/terminal/Terminal";
+import { VsTerminal } from "@/components/terminal/VsTerminal";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import React from "react";
@@ -876,7 +877,7 @@ export default function BrowserPage() {
               {/* Terminal Panel */}
               <ResizablePanel defaultSize={30} minSize={20}>
                 <div className="flex flex-col h-full overflow-hidden">
-                  <Terminal />
+                  <VsTerminal />
                 </div>
               </ResizablePanel>
             </>

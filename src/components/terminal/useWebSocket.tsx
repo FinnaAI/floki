@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
-import { ChatMessage } from "./Terminal";
+import type { ChatMessage } from "./Terminal";
 
 export function useWebSocket() {
   const [connected, setConnected] = useState(false);
@@ -98,10 +98,7 @@ export function useWebSocket() {
     }
 
     reconnectAttempts.current += 1;
-    const backoffTime = Math.min(
-      1000 * Math.pow(2, reconnectAttempts.current),
-      10000
-    );
+    const backoffTime = Math.min(1000 * 2 ** reconnectAttempts.current, 10000);
 
     addMessage({
       type: "system",
@@ -291,8 +288,7 @@ export function useWebSocket() {
             if (data.command === "codex" || data.command_type === "codex") {
               const content = data.data.trim();
               console.log(
-                "Processing Codex output",
-                content.substring(0, 50) + "..."
+                `Processing Codex output: ${content.substring(0, 50)}...`
               );
 
               try {
