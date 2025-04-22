@@ -63,7 +63,7 @@ export default function BrowserPage() {
   } = useFiles();
 
   return (
-    <div className="overflow-hidden">
+    <div className="h-screen w-full overflow-hidden">
       {/* Main container with overflow hidden to prevent whole page scrolling */}
       <div className="flex h-full flex-col overflow-hidden dark:bg-slate-900">
         {/* Navigation Bar with controls and search */}

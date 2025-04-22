@@ -9,11 +9,11 @@ import {
   FileText,
   Terminal as TerminalIcon,
   Code,
-  Link,
   Home,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { SidebarTrigger } from "../ui/sidebar";
+import Link from "next/link";
 
 interface IdeHeaderProps {
   children?: React.ReactNode;
@@ -39,10 +39,10 @@ export function IdeHeader({ children, className }: IdeHeaderProps) {
         className
       )}
     >
-      <div className="flex items-center gap-2">
-        <SidebarTrigger />
+      <div className="flex items-center gap-2 ml-10">
+        {/* <SidebarTrigger /> */}
         <Button
-          variant="outline"
+          variant="ghost"
           size="sm"
           asChild
           className="rounded-lg border-slate-200 shadow-sm hover:bg-slate-100 dark:border-slate-700 dark:hover:bg-slate-800"
@@ -57,9 +57,9 @@ export function IdeHeader({ children, className }: IdeHeaderProps) {
         </Button>
       </div>
 
-      <div className="flex items-center gap-2 justify-end">
+      <div className="flex items-center justify-end gap-2">
         <Button
-          variant={showFileTree ? "default" : "outline"}
+          variant={showFileTree ? "outline" : "ghost"}
           size="sm"
           className="rounded-lg"
           onClick={toggleFileTree}
@@ -68,16 +68,16 @@ export function IdeHeader({ children, className }: IdeHeaderProps) {
           File tree
         </Button>
         <Button
-          variant={showFileContent ? "default" : "outline"}
+          variant={showFileContent ? "outline" : "ghost"}
           size="sm"
-          className="rounded-lg"
+          className={cn("rounded-lg", showFileContent && "")}
           onClick={toggleFileContent}
         >
           <FileText size={16} className="mr-1" />
           Content
         </Button>
         <Button
-          variant={showTerminal ? "default" : "outline"}
+          variant={showTerminal ? "outline" : "ghost"}
           size="sm"
           className="rounded-lg"
           onClick={toggleTerminal}
@@ -86,7 +86,7 @@ export function IdeHeader({ children, className }: IdeHeaderProps) {
           Terminal
         </Button>
         <Button
-          variant={showCodex ? "default" : "outline"}
+          variant={showCodex ? "outline" : "ghost"}
           size="sm"
           className="rounded-lg"
           onClick={toggleCodex}
