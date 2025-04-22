@@ -1,0 +1,98 @@
+"use client";
+
+import React from "react";
+import { Button } from "@/components/ui/button";
+import { useIdeLayout } from "@/components/ide/ide-context";
+import {
+  PanelLeft,
+  PanelRight,
+  FileText,
+  Terminal as TerminalIcon,
+  Code,
+  Link,
+  Home,
+} from "lucide-react";
+import { cn } from "@/lib/utils";
+
+interface IdeHeaderProps {
+  children?: React.ReactNode;
+  className?: string;
+}
+
+export function IdeHeader({ children, className }: IdeHeaderProps) {
+  const {
+    showFileTree,
+    showFileContent,
+    showTerminal,
+    toggleFileTree,
+    toggleFileContent,
+    toggleTerminal,
+    showCodex,
+    toggleCodex,
+  } = useIdeLayout();
+
+  return (
+    <header
+      className={cn(
+        "flex items-start justify-between border-slate-200 border-b bg-slate-50 px-4 py-2 text-sm dark:border-slate-700 dark:bg-slate-900/50",
+        className
+      )}
+    >
+      <div className="flex items-center gap-2">
+        <Button
+          variant="outline"
+          size="sm"
+          asChild
+          className="rounded-lg border-slate-200 shadow-sm hover:bg-slate-100 dark:border-slate-700 dark:hover:bg-slate-800"
+        >
+          <Link href="/">
+            <Home
+              size={16}
+              className="mr-1.5 text-slate-600 dark:text-slate-400"
+            />
+            Home
+          </Link>
+        </Button>
+      </div>
+
+      <div className="flex items-center gap-2 justify-end">
+        <Button
+          variant={showFileTree ? "default" : "outline"}
+          size="sm"
+          className="rounded-lg"
+          onClick={toggleFileTree}
+        >
+          <PanelLeft size={16} className="mr-1" />
+          File tree
+        </Button>
+        <Button
+          variant={showFileContent ? "default" : "outline"}
+          size="sm"
+          className="rounded-lg"
+          onClick={toggleFileContent}
+        >
+          <FileText size={16} className="mr-1" />
+          Content
+        </Button>
+        <Button
+          variant={showTerminal ? "default" : "outline"}
+          size="sm"
+          className="rounded-lg"
+          onClick={toggleTerminal}
+        >
+          <TerminalIcon size={16} className="mr-1" />
+          Terminal
+        </Button>
+        <Button
+          variant={showCodex ? "default" : "outline"}
+          size="sm"
+          className="rounded-lg"
+          onClick={toggleCodex}
+        >
+          <Code size={16} className="mr-1" />
+          Codex
+        </Button>
+      </div>
+    </header>
+  );
+}

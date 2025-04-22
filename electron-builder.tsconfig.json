@@ -9,5 +9,5 @@
 		"rootDir": "src/main",
 		"skipLibCheck": true
 	},
-	"include": ["src/main/**/*"]
+	"include": ["src/main/**/*", "build/**/*"]
 }

@@ -3,10 +3,10 @@ productName: "Floki"
 copyright: "Copyright (c) 2025 Finna AI"
 win:
   target: ["dir", "portable", "zip"]
-  icon: "public/app/icon.ico"
+  icon: "build/icon.ico"
 linux:
   target: ["dir", "appimage", "zip"]
-  icon: "public/app/icon.png"
+  icon: "build/icon.png"
 mac:
   target: ["dir", "dmg", "zip"]
-  icon: "public/app/icon.icns"
+  icon: "build/icon.icns"
