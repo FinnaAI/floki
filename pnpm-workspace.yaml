@@ -1,2 +1,10 @@
 onlyBuiltDependencies:
+  - "@biomejs/biome"
+  - bufferutil
+  - electron
+  - electron-winstaller
+  - esbuild
   - node-pty
+  - prisma
+  - sharp
+  - utf-8-validate

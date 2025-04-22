@@ -1,22 +1,27 @@
 {
 	"name": "floki",
+	"author": "Finna AI",
+	"description": "Floki is an AI native app for running coding agents.",
 	"version": "0.1.0",
 	"private": true,
 	"type": "module",
+	"main": "dist/main/main.js",
 	"scripts": {
+		"dev": "next dev",
 		"build": "next build",
+		"start": "next start",
+		"electron:dev": "cross-env NODE_ENV=development concurrently -n \"NEXT,ELECTRON\" -c \"yellow,blue\" --kill-others \"pnpm dev\" \"wait-on tcp:3000 && tsc -p electron-builder.tsconfig.json && electron .\"",
+		"electron:build": "pnpm rebuild node-pty && tsc -p electron-builder.tsconfig.json && next build && electron-builder",
+		"electron:compile": "tsc -p electron-builder.tsconfig.json",
+		"postinstall": "#prisma generate",
+		"typecheck": "tsc --noEmit",
 		"check": "biome check .",
 		"check:unsafe": "biome check --write --unsafe .",
 		"check:write": "biome check --write .",
 		"db:generate": "prisma migrate dev",
 		"db:migrate": "prisma migrate deploy",
 		"db:push": "prisma db push",
-		"db:studio": "prisma studio",
-		"dev": "next dev",
-		"postinstall": "prisma generate",
-		"preview": "next build && next start",
-		"start": "next start",
-		"typecheck": "tsc --noEmit"
+		"db:studio": "prisma studio"
 	},
 	"dependencies": {
 		"@prisma/client": "^6.5.0",
@@ -29,6 +34,7 @@
 		"bufferutil": "^4.0.9",
 		"class-variance-authority": "^0.7.1",
 		"clsx": "^2.1.1",
+		"electron-serve": "^2.1.1",
 		"lucide-react": "^0.503.0",
 		"next": "^15.2.3",
 		"node-pty": "^1.0.0",
@@ -54,13 +60,32 @@
 		"@types/react": "^19.0.0",
 		"@types/react-dom": "^19.0.0",
 		"@types/ws": "^8.18.1",
+		"concurrently": "^9.1.2",
+		"cross-env": "^7.0.3",
+		"electron": "^35.2.0",
+		"electron-builder": "^26.0.12",
 		"postcss": "^8.5.3",
 		"prisma": "^6.5.0",
 		"tailwindcss": "^4.0.15",
-		"typescript": "^5.8.2"
+		"typescript": "^5.8.2",
+		"wait-on": "^8.0.3"
 	},
 	"ct3aMetadata": {
 		"initVersion": "7.39.3"
 	},
-	"packageManager": "pnpm@10.8.1"
+	"packageManager": "pnpm@10.8.1",
+	"build": {
+		"appId": "com.floki.app",
+		"productName": "Floki",
+		"directories": {
+			"output": "dist"
+		},
+		"files": [
+			"dist/**/*",
+			"out/**/*"
+		],
+		"mac": {
+			"category": "public.app-category.developer-tools"
+		}
+	}
 }
