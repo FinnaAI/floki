@@ -19,12 +19,15 @@ export default async function IDELayout({ children }: { children: ReactNode }) {
     <GitStatusProvider>
       <FileProvider>
         <IdeLayoutProvider>
-          <SidebarProvider className="flex flex-col" defaultOpen={defaultOpen}>
+          <SidebarProvider
+            className="flex flex-col h-[100dvh] overflow-hidden"
+            defaultOpen={defaultOpen}
+          >
             <IdeHeader />
-            <SidebarInset>
-              <div className="flex flex-row">
+            <SidebarInset className="overflow-hidden h-[calc(100dvh-3rem)]">
+              <div className="flex flex-row h-full overflow-hidden">
                 <IDESidebar />
-                <div className="flex-1">{children}</div>
+                <div className="flex-1 overflow-hidden">{children}</div>
               </div>
             </SidebarInset>
           </SidebarProvider>

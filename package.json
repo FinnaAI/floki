@@ -11,9 +11,6 @@
 		"dev": "next dev",
 		"build": "next build",
 		"start": "next start",
-		"electron:dev": "cross-env NODE_ENV=development concurrently -n \"NEXT,ELECTRON\" -c \"yellow,blue\" --kill-others \"pnpm dev\" \"wait-on tcp:3000 && tsc -p electron-builder.tsconfig.json && electron .\"",
-		"electron:build": "pnpm rebuild node-pty && tsc -p electron-builder.tsconfig.json && next build && electron-builder",
-		"electron:compile": "tsc -p electron-builder.tsconfig.json",
 		"postinstall": "#prisma generate",
 		"typecheck": "tsc --noEmit",
 		"check": "biome check .",
@@ -22,7 +19,13 @@
 		"db:generate": "prisma migrate dev",
 		"db:migrate": "prisma migrate deploy",
 		"db:push": "prisma db push",
-		"db:studio": "prisma studio"
+		"db:studio": "prisma studio",
+		"electron:dev": "cross-env NODE_ENV=development concurrently -n \"NEXT,ELECTRON\" -c \"yellow,blue\" --kill-others \"pnpm dev\" \"wait-on tcp:3000 && tsc -p electron-builder.tsconfig.json && electron .\"",
+		"electron:build": "pnpm rebuild node-pty && tsc -p electron-builder.tsconfig.json && next build && electron-builder",
+		"electron:compile": "tsc -p electron-builder.tsconfig.json",
+		"build:workers": "tsc -p tsconfig.worker.json",
+		"watch:workers": "tsc -p tsconfig.worker.json --watch"
+
 	},
 	"dependencies": {
 		"@prisma/client": "^6.5.0",

@@ -193,7 +193,7 @@ const FileViewerContent = React.memo<FileViewerContentProps>(
           </div>
         )}
 
-        <div className="flex-1 overflow-hidden">
+        <div className="flex-1 overflow-hidden w-full">
           <ViewComponent
             selectedFile={selectedFile}
             fileContent={fileContent}
@@ -229,7 +229,7 @@ export const FileViewerPanel: React.FC = () => {
   const stableKey = selectedFile ? selectedFile.path : "no-file-selected";
 
   return (
-    <div key={stableKey} className="h-full">
+    <div key={stableKey} className="h-full w-full overflow-hidden">
       <FileViewerContent
         selectedFile={selectedFile}
         fileContent={fileContent}

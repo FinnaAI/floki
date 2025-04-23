@@ -193,7 +193,7 @@ const FileViewer = ({
 
       {/* File content scroll area */}
       <ScrollArea className="h-full">
-        <div className="p-4">
+        <div className="p-4 w-full max-w-full">
           {loading ? (
             <div className="flex h-24 items-center justify-center text-slate-500">
               <div className="mr-2 h-6 w-6 animate-spin rounded-full border-blue-500 border-b-2" />
@@ -227,7 +227,7 @@ const FileViewer = ({
                     Git Diff
                   </div>
                   <div className="max-h-[40vh] overflow-x-auto p-4 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-                    <pre className="overflow-visible font-mono text-sm">
+                    <pre className="overflow-visible font-mono text-sm whitespace-pre-wrap break-all">
                       {fileDiff.hunks.map((hunk, hunkIndex) => (
                         <div key={hunkIndex} className="mb-4">
                           <div className="mb-2 text-slate-500 dark:text-slate-400">
@@ -256,14 +256,16 @@ const FileViewer = ({
               )}
 
               {/* Show File Content - Image or Text */}
-              <div className="overflow-hidden rounded-lg border border-slate-200 bg-slate-50 dark:border-slate-800 dark:bg-slate-900">
+              <div className="overflow-hidden rounded-lg border border-slate-200 bg-slate-50 dark:border-slate-800 dark:bg-slate-900 w-full">
                 <div className="border-slate-200 border-b bg-slate-100 px-4 py-2 font-medium dark:border-slate-700 dark:bg-slate-800">
                   File Content
                 </div>
                 <div
                   className={cn(
-                    "overflow-x-auto p-4",
-                    isImageFile ? "flex justify-center" : ""
+                    "p-4",
+                    isImageFile
+                      ? "flex justify-center"
+                      : "overflow-hidden max-w-full"
                   )}
                 >
                   {isImageFile ? (
@@ -295,17 +297,32 @@ const FileViewer = ({
                       </div>
                     )
                   ) : (
-                    <SyntaxHighlighter
-                      language={getLanguage}
-                      customStyle={{
-                        margin: 0,
-                        padding: 0,
-                        background: "transparent",
-                      }}
-                      className="overflow-visible whitespace-pre-wrap font-mono text-sm"
-                    >
-                      {fileContent || ""}
-                    </SyntaxHighlighter>
+                    <div className="w-full overflow-hidden">
+                      <SyntaxHighlighter
+                        language={getLanguage}
+                        customStyle={{
+                          margin: 0,
+                          padding: 0,
+                          background: "transparent",
+                          whiteSpace: "pre-wrap",
+                          wordBreak: "break-all",
+                          overflowWrap: "break-word",
+                          maxWidth: "100%",
+                          overflow: "hidden",
+                          width: "100%",
+                        }}
+                        wrapLongLines={true}
+                        lineProps={{
+                          style: {
+                            whiteSpace: "pre-wrap",
+                            wordBreak: "break-all",
+                          },
+                        }}
+                        className="font-mono text-sm w-full break-all"
+                      >
+                        {fileContent || ""}
+                      </SyntaxHighlighter>
+                    </div>
                   )}
                 </div>
               </div>

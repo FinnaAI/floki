@@ -39,6 +39,12 @@ import { SelectedFilesBar } from "@/components/ide/selected-files-bar";
 export default function BrowserPage() {
   const { showFileTree, showFileContent, showTerminal, showCodex } =
     useIdeLayout();
+  // Compute default panel sizes (percentages) so they sum to 100 and avoid overflow
+  const treeSize = showFileTree ? 15 : 0;
+  const terminalSize = showTerminal ? 25 : 0;
+  const codexSize = showCodex ? 15 : 0;
+  // Content panel takes remaining space
+  const contentSize = 100 - treeSize - terminalSize - codexSize;
   const {
     filteredFiles,
     searchQuery,
@@ -63,7 +69,7 @@ export default function BrowserPage() {
   } = useFiles();
 
   return (
-    <div className="h-screen w-full overflow-hidden">
+    <div className="h-[calc(100dvh-3rem)] w-full overflow-hidden">
       {/* Main container with overflow hidden to prevent whole page scrolling */}
       <div className="flex h-full flex-col overflow-hidden dark:bg-slate-900">
         {/* Navigation Bar with controls and search */}
@@ -190,7 +196,7 @@ export default function BrowserPage() {
           {/* File Browser Panel */}
           {showFileTree && (
             <>
-              <ResizablePanel defaultSize={15} minSize={10} maxSize={50}>
+              <ResizablePanel defaultSize={treeSize} minSize={10} maxSize={50}>
                 <FileTree
                   files={filteredFiles}
                   selectedFile={selectedFile}
@@ -212,7 +218,7 @@ export default function BrowserPage() {
           {/* File Content Panel */}
           {showFileContent && (
             <>
-              <ResizablePanel defaultSize={showTerminal ? 40 : 80} minSize={20}>
+              <ResizablePanel defaultSize={contentSize} minSize={20}>
                 <FileViewerPanel />
               </ResizablePanel>
               {showTerminal && <ResizableHandle withHandle />}
@@ -222,7 +228,7 @@ export default function BrowserPage() {
           {/* Terminal Panel */}
           {showTerminal && (
             <>
-              <ResizablePanel defaultSize={30} minSize={20}>
+              <ResizablePanel defaultSize={terminalSize} minSize={20}>
                 <TerminalPanel />
               </ResizablePanel>
               <ResizableHandle withHandle />
@@ -231,7 +237,7 @@ export default function BrowserPage() {
 
           {/* Codex Panel */}
           {showCodex && (
-            <ResizablePanel defaultSize={30} minSize={20}>
+            <ResizablePanel defaultSize={codexSize} minSize={20}>
               <Codex />
             </ResizablePanel>
           )}

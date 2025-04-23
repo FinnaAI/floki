@@ -1,6 +1,5 @@
 "use client";
 
-import React from "react";
 import { Button } from "@/components/ui/button";
 import { useIdeLayout } from "@/components/ide/ide-context";
 import {
@@ -14,9 +13,10 @@ import {
 import { cn } from "@/lib/utils";
 import { SidebarTrigger } from "../ui/sidebar";
 import Link from "next/link";
+import type { ReactNode } from "react";
 
 interface IdeHeaderProps {
-  children?: React.ReactNode;
+  children?: ReactNode;
   className?: string;
 }
 
@@ -35,7 +35,7 @@ export function IdeHeader({ children, className }: IdeHeaderProps) {
   return (
     <header
       className={cn(
-        "flex items-start justify-between border-slate-200 border-b bg-slate-50 px-4 py-2 text-sm dark:border-slate-700 dark:bg-slate-900/50",
+        "flex items-start justify-between border-slate-200 border-b bg-slate-50 px-4 py-2 text-sm dark:border-slate-700 dark:bg-slate-900/50 h-12",
         className
       )}
     >
