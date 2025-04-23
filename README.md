@@ -28,6 +28,8 @@ Traditional IDEs weren't designed with AI integration in mind. Floki creates a n
 - **PRD Generator**: Create detailed product requirement documents with AI assistance
 - **Task Management**: Manage your coding tasks and delegate to AI agents efficiently
 
+![](/public/floki-dev1.png)
+
 ## Installation
 
 ```bash
