@@ -86,7 +86,7 @@ export function Hero() {
             </p>
 
             <div className="flex flex-col sm:flex-row gap-4 justify-center mb-12">
-              <motion.div
+              {/* <motion.div
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
               >
@@ -113,7 +113,7 @@ export function Hero() {
                     <path d="m12 5 7 7-7 7" />
                   </svg>
                 </Link>
-              </motion.div>
+              </motion.div> */}
 
               <motion.div
                 whileHover={{ scale: 1.05 }}
