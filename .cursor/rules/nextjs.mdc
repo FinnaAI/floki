@@ -8,7 +8,7 @@ alwaysApply: true
 
 - I'm using pnpm 
 - my packages installed atm are: [package.json](mdc:package.json)
-- for naming components use lower case and with - between, like app-component rather than AppComponent. also don't use default exports.
+- for naming component files use lower case and with - between, like app-component.tsx rather than AppComponent. also don't use default exports. but for the component name inside the file, keep using uppercase as it's required by react!
 - i'm using tailwind 4 which has a different style than previous version, check internet if not sure. 
 - framer-motion is changed to motion/react package, use that when needed, all apis are the same, only name is different.
 

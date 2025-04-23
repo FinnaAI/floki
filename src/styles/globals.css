@@ -124,3 +124,54 @@
     @apply bg-background text-foreground;
   }
 }
+
+@layer utilities {
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+}
+
+/* Background patterns */
+.bg-grid-pattern {
+  background-size: 40px 40px;
+  background-image: linear-gradient(
+      to right,
+      var(--foreground) 1px,
+      transparent 1px
+    ),
+    linear-gradient(to bottom, var(--foreground) 1px, transparent 1px);
+  background-attachment: fixed;
+  background-position: 0 0;
+}
+
+/* Background blob fix */
+.bg-extend {
+  position: absolute;
+  isolation: isolate;
+  background-clip: padding-box;
+  transform-origin: center;
+  will-change: transform;
+  pointer-events: none;
+}
+
+/* Custom animations */
+@keyframes progress {
+  0% {
+    width: 0%;
+  }
+  50% {
+    width: 70%;
+  }
+  100% {
+    width: 100%;
+  }
+}
+
+.animate-progress {
+  animation: progress 3s ease-in-out infinite;
+}
