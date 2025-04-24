@@ -12,7 +12,7 @@ import {
 } from "@/components/ui/sidebar";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { FileTree } from "@/components/ide/file-tree";
-import { useFiles } from "@/components/ide/file-context";
+import { useFileStore } from "@/store/file-store";
 
 export function FileTreeSidebar() {
   const {
@@ -27,7 +27,7 @@ export function FileTreeSidebar() {
     toggleFileSelection,
     isFileSelected,
     // clearSearch,
-  } = useFiles();
+  } = useFileStore();
 
   return (
     <Sidebar
@@ -49,11 +49,8 @@ export function FileTreeSidebar() {
             loading={loading}
             error={error}
             searchQuery={searchQuery}
-            handleFileClick={handleFileClick}
             currentPath={currentPath}
             clearSearch={() => {}}
-            toggleFileSelection={toggleFileSelection}
-            isFileSelected={isFileSelected}
           />
         </ScrollArea>
       </SidebarContent>

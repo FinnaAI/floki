@@ -4,7 +4,11 @@ import React, { useState, useMemo, useCallback } from "react";
 import FileViewer from "@/components/FileViewer";
 import type { FileInfo, FileDiff } from "@/types/files";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { useFiles } from "./file-context";
+import { useFileStore } from "@/store/file-store";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Button } from "@/components/ui/button";
+import { File, FileText, Loader2 } from "lucide-react";
+import SyntaxHighlighter from "react-syntax-highlighter";
 
 // View types that will be supported
 export type ViewType = "code" | "graph" | "components" | "preview";
@@ -144,7 +148,7 @@ const FileViewerContent = React.memo<FileViewerContentProps>(
       }
 
       return availableViews;
-    }, [selectedFile]);
+    }, [selectedFile]); // Keep the whole selectedFile as dependency to satisfy linter
 
     const availableViews = useMemo(
       () => getAvailableViews(),
@@ -211,11 +215,28 @@ FileViewerContent.displayName = "FileViewerContent";
 
 // Main extensible file viewer panel
 export const FileViewerPanel: React.FC = () => {
-  const { selectedFile, fileContent, fileDiff, loading, error } = useFiles();
+  const { selectedFile, fileContent, fileDiff, fileLoading, error } =
+    useFileStore();
   const [activeView, setActiveView] = useState<ViewType>("code");
 
-  // No file selected
-  if (!selectedFile && !loading) {
+  // Memoize the onViewChange callback to prevent FileViewerContent from re-rendering unnecessarily
+  const handleViewChange = useCallback((view: ViewType) => {
+    setActiveView(view);
+  }, []);
+
+  // Memoize the current file content state to prevent changes when switching folders
+  const fileState = useMemo(() => {
+    return {
+      selectedFile,
+      fileContent,
+      fileDiff,
+      loading: fileLoading,
+      error,
+    };
+  }, [selectedFile, fileContent, fileDiff, fileLoading, error]);
+
+  // No file selected - doesn't depend on loading state
+  if (!selectedFile) {
     return (
       <div className="flex h-full items-center justify-center text-slate-400">
         <div className="text-center">
@@ -225,19 +246,16 @@ export const FileViewerPanel: React.FC = () => {
     );
   }
 
-  // Key based on file path if a file is selected, otherwise a constant key
-  const stableKey = selectedFile ? selectedFile.path : "no-file-selected";
-
   return (
-    <div key={stableKey} className="h-full w-full overflow-hidden">
+    <div className="h-full w-full overflow-hidden">
       <FileViewerContent
-        selectedFile={selectedFile}
-        fileContent={fileContent}
-        fileDiff={fileDiff}
-        loading={loading}
-        error={error}
+        selectedFile={fileState.selectedFile}
+        fileContent={fileState.fileContent}
+        fileDiff={fileState.fileDiff}
+        loading={fileState.loading}
+        error={fileState.error}
         activeView={activeView}
-        onViewChange={setActiveView}
+        onViewChange={handleViewChange}
       />
     </div>
   );

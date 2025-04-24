@@ -1,6 +1,5 @@
 import { Hero } from "@/components/landing/Hero";
-import * as motion from "motion/react-client";
-import { ClientTweetCard } from "@/components/landing/tweet-client";
+
 export const dynamic = "force-dynamic";
 
 export default function Home() {

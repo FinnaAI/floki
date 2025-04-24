@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useEffect } from "react";
 import type { FileInfo } from "@/types/files";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
@@ -20,74 +20,114 @@ import {
   ChevronDown,
 } from "lucide-react";
 import { getFileIcon, formatDate, formatFileSize } from "@/lib/file-utils";
-import { useGitStatus } from "./git-status";
+import { useGitStatusStore } from "@/store/git-status-store";
+import { useFileTreeStore } from "@/store/file-tree-store";
+import { useFileStore } from "@/store/file-store";
 
 interface FileTreeProps {
   files: FileInfo[];
   selectedFile: FileInfo | null;
   loading: boolean;
+  directoryLoading: boolean;
   error: string | null;
   searchQuery: string;
   filteredFiles: FileInfo[];
-  handleFileClick: (file: FileInfo) => void;
   currentPath: string;
   clearSearch: () => void;
-  toggleFileSelection: (file: FileInfo) => void;
-  isFileSelected: (file: FileInfo) => boolean;
 }
 
 export function FileTree({
   files,
   selectedFile,
   loading,
+  directoryLoading,
   error,
   searchQuery,
   filteredFiles,
-  handleFileClick,
   currentPath,
   clearSearch,
-  toggleFileSelection,
-  isFileSelected,
 }: FileTreeProps) {
-  // Use git context
-  const { isIgnored, getFileStatus, showIgnoredFiles } = useGitStatus();
+  // Use git store
+  const { isIgnored, getFileStatus, showIgnoredFiles, setCurrentPath } =
+    useGitStatusStore();
 
-  // State to track expanded folders - use file path as key
-  const [expandedFolders, setExpandedFolders] = useState<
-    Record<string, boolean>
-  >({});
+  // Get the MAIN file store - this is needed for file operations
+  const fileStore = useFileStore();
 
-  // Toggle folder expansion
-  const toggleFolderExpanded = useCallback(
-    (folderPath: string, e?: React.MouseEvent) => {
-      if (e) {
-        e.preventDefault();
-        e.stopPropagation();
-      }
+  // Get directoryLoading from the file store if not provided
+  const directoryLoadingState = directoryLoading ?? fileStore.directoryLoading;
 
-      console.log(`Toggling folder expansion for: ${folderPath}`);
+  // Use the file tree store for UI state
+  const {
+    isFolderExpanded,
+    toggleFolderExpanded,
+    setFiles,
+    setSelectedFile,
+    setLoading,
+    setDirectoryLoading,
+    setError,
+    setSearchQuery,
+    setFilteredFiles,
+    setCurrentPath: setFileTreeCurrentPath,
+  } = useFileTreeStore();
 
-      setExpandedFolders((prev) => {
-        const newState = { ...prev };
-        newState[folderPath] = !prev[folderPath];
-        return newState;
-      });
-    },
-    []
-  );
+  // Connect to the main file store operations
+  const handleFileClick = (file: FileInfo) => {
+    fileStore.handleFileClick(file);
+  };
 
-  // Check if a folder is expanded
-  const isFolderExpanded = useCallback(
-    (folderPath: string) => {
-      return expandedFolders[folderPath] === true;
-    },
-    [expandedFolders]
-  );
+  const toggleFileSelection = (file: FileInfo) => {
+    fileStore.toggleFileSelection(file);
+  };
+
+  const isFileSelected = (file: FileInfo) => {
+    return fileStore.isFileSelected(file);
+  };
+
+  // Update store from props when they change
+  useEffect(() => {
+    setFiles(files);
+    setSelectedFile(selectedFile);
+    setLoading(loading);
+    if (setDirectoryLoading) {
+      setDirectoryLoading(directoryLoadingState);
+    }
+    setError(error);
+    setSearchQuery(searchQuery);
+    setFilteredFiles(filteredFiles);
+    setFileTreeCurrentPath(currentPath);
+
+    // Update git status path
+    setCurrentPath(currentPath);
+  }, [
+    files,
+    selectedFile,
+    loading,
+    directoryLoadingState,
+    error,
+    searchQuery,
+    filteredFiles,
+    currentPath,
+    setFiles,
+    setSelectedFile,
+    setLoading,
+    setDirectoryLoading,
+    setError,
+    setSearchQuery,
+    setFilteredFiles,
+    setFileTreeCurrentPath,
+    setCurrentPath,
+  ]);
+
+  // Use store's clearSearch instead of the prop
+  const handleClearSearch = () => {
+    clearSearch();
+  };
 
   return (
     <ScrollArea className="h-full">
       <div className="p-2">
-        {loading && !filteredFiles.length ? (
+        {directoryLoadingState && !filteredFiles.length ? (
           <div className="flex h-24 items-center justify-center text-slate-500">
             <div className="mr-2 h-6 w-6 animate-spin rounded-full border-blue-500 border-b-2" />
             Loading...
@@ -105,7 +145,7 @@ export function FileTree({
                 <p>No files match your search</p>
                 <Button
                   type="button"
-                  onClick={clearSearch}
+                  onClick={handleClearSearch}
                   className="mt-2 text-blue-500 hover:text-blue-600 dark:text-blue-400 dark:hover:text-blue-300"
                 >
                   Clear search
@@ -125,17 +165,13 @@ export function FileTree({
                 key={file.path}
                 file={file}
                 selectedFile={selectedFile}
-                isFileSelected={isFileSelected}
                 isIgnored={isIgnored(file.path)}
                 showIgnoredFiles={showIgnoredFiles}
                 fileStatus={getFileStatus(file.path)}
-                isExpanded={isFolderExpanded(file.path)}
-                toggleExpanded={toggleFolderExpanded}
-                toggleSelection={toggleFileSelection}
-                handleFileClick={handleFileClick}
-                level={0}
                 filteredFiles={filteredFiles}
-                checkExpanded={isFolderExpanded}
+                handleFileClick={handleFileClick}
+                toggleFileSelection={toggleFileSelection}
+                isFileSelected={isFileSelected}
               />
             ))}
           </div>
@@ -149,36 +185,35 @@ export function FileTree({
 function FileItem({
   file,
   selectedFile,
-  isFileSelected,
   isIgnored,
   showIgnoredFiles,
   fileStatus,
-  isExpanded,
-  toggleExpanded,
-  toggleSelection,
-  handleFileClick,
-  level,
   filteredFiles,
-  checkExpanded,
+  level = 0,
+  handleFileClick,
+  toggleFileSelection,
+  isFileSelected,
 }: {
   file: FileInfo;
   selectedFile: FileInfo | null;
-  isFileSelected: (file: FileInfo) => boolean;
   isIgnored: boolean;
   showIgnoredFiles: boolean;
   fileStatus: string;
-  isExpanded: boolean;
-  toggleExpanded: (path: string, e?: React.MouseEvent) => void;
-  toggleSelection: (file: FileInfo) => void;
-  handleFileClick: (file: FileInfo) => void;
-  level: number;
   filteredFiles: FileInfo[];
-  checkExpanded: (path: string) => boolean;
+  level?: number;
+  handleFileClick: (file: FileInfo) => void;
+  toggleFileSelection: (file: FileInfo) => void;
+  isFileSelected: (file: FileInfo) => boolean;
 }) {
+  // Use the file tree store only for folder expansion state
+  const { isFolderExpanded, toggleFolderExpanded } = useFileTreeStore();
+
   // Skip rendering ignored files if showIgnoredFiles is false
   if (isIgnored && !showIgnoredFiles) {
     return null;
   }
+
+  const isExpanded = isFolderExpanded(file.path);
 
   const statusColorClass =
     fileStatus === "modified"
@@ -213,7 +248,7 @@ function FileItem({
     e.preventDefault();
     e.stopPropagation();
     if (file.isDirectory) {
-      toggleExpanded(file.path, e);
+      toggleFolderExpanded(file.path);
     }
   };
 
@@ -223,7 +258,7 @@ function FileItem({
       e.preventDefault();
       e.stopPropagation();
       if (file.isDirectory) {
-        toggleExpanded(file.path);
+        toggleFolderExpanded(file.path);
       }
     }
   };
@@ -260,7 +295,7 @@ function FileItem({
 
         <Checkbox
           checked={isFileSelected(file)}
-          onCheckedChange={() => toggleSelection(file)}
+          onCheckedChange={() => toggleFileSelection(file)}
           onClick={(e) => e.stopPropagation()}
           className="mr-1 h-4 w-4"
         />
@@ -327,17 +362,14 @@ function FileItem({
               key={childFile.path}
               file={childFile}
               selectedFile={selectedFile}
-              isFileSelected={isFileSelected}
               isIgnored={isIgnored}
               showIgnoredFiles={showIgnoredFiles}
               fileStatus={fileStatus}
-              isExpanded={checkExpanded(childFile.path)}
-              toggleExpanded={toggleExpanded}
-              toggleSelection={toggleSelection}
-              handleFileClick={handleFileClick}
-              level={level + 1}
               filteredFiles={filteredFiles}
-              checkExpanded={checkExpanded}
+              level={level + 1}
+              handleFileClick={handleFileClick}
+              toggleFileSelection={toggleFileSelection}
+              isFileSelected={isFileSelected}
             />
           ))}
         </div>

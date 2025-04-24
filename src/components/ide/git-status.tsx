@@ -1,10 +1,11 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { GitCompare, Eye, EyeOff } from "lucide-react";
-import path from "path";
+import { useGitStatusStore } from "@/store/git-status-store";
 
+// Keeping the type for backward compatibility
 interface GitStatus {
   modified: string[];
   added: string[];
@@ -14,137 +15,24 @@ interface GitStatus {
   error?: string;
 }
 
+// Legacy provider that uses the store internally - for backwards compatibility
 export const GitStatusProvider: React.FC<{ children: React.ReactNode }> = ({
   children,
 }) => {
-  const [showGitStatus, setShowGitStatus] = useState(true);
-  const [gitStatus, setGitStatus] = useState<GitStatus | null>(null);
-  const [showIgnoredFiles, setShowIgnoredFiles] = useState(false);
-  const [currentPath, setCurrentPath] = useState("");
+  const { showGitStatus, fetchGitStatus, setCurrentPath, currentPath } =
+    useGitStatusStore();
 
+  // Fetch git status when showGitStatus changes
   useEffect(() => {
     if (showGitStatus) {
       fetchGitStatus();
     }
-  }, [showGitStatus, showIgnoredFiles, currentPath]);
+  }, [showGitStatus, fetchGitStatus]);
 
-  const fetchGitStatus = async () => {
-    try {
-      // Ensure we're passing the correct path to the API
-      const pathParam = encodeURIComponent(currentPath);
-
-      const response = await fetch(
-        `/api/filesystem?path=${pathParam}&git=${showGitStatus}&showIgnored=${showIgnoredFiles}`
-      );
-
-      if (!response.ok) {
-        throw new Error(`HTTP error ${response.status}`);
-      }
-
-      const data = await response.json();
-      if (data.git) {
-        setGitStatus(data.git);
-      }
-    } catch (err) {
-      console.error("Error fetching git status:", err);
-    }
-  };
-
-  // Toggle git status display
-  const toggleGitStatus = () => {
-    setShowGitStatus(!showGitStatus);
-  };
-
-  // Toggle showing ignored files
-  const toggleIgnoredFiles = () => {
-    setShowIgnoredFiles(!showIgnoredFiles);
-  };
-
-  // Determine file status for styling
-  const getFileStatus = (filePath: string): string => {
-    if (!gitStatus) return "";
-
-    const relativePath = path
-      .relative(currentPath, filePath)
-      .replace(/\\/g, "/");
-
-    if (gitStatus.modified.includes(relativePath)) return "modified";
-    if (gitStatus.added.includes(relativePath)) return "added";
-    if (gitStatus.deleted.includes(relativePath)) return "deleted";
-    if (gitStatus.untracked.includes(relativePath)) return "untracked";
-
-    return "";
-  };
-
-  // Determine if file is ignored by git
-  const isIgnored = (filePath: string): boolean => {
-    if (!gitStatus || !gitStatus.ignored || gitStatus.ignored.length === 0)
-      return false;
-
-    // Get the relative path for matching
-    const relativePath = path
-      .relative(currentPath, filePath)
-      .replace(/\\/g, "/");
-
-    // File is explicitly in the ignored list
-    if (gitStatus.ignored.includes(relativePath)) {
-      return true;
-    }
-
-    // Check if file is in an ignored directory
-    for (const pattern of gitStatus.ignored) {
-      // Direct match
-      if (relativePath === pattern) {
-        return true;
-      }
-
-      // Directory match (if pattern ends with /)
-      if (pattern.endsWith("/") && relativePath.startsWith(pattern)) {
-        return true;
-      }
-
-      // Handle wildcards for specific file extensions
-      if (
-        pattern.startsWith("*.") &&
-        relativePath.endsWith(pattern.substring(1))
-      ) {
-        return true;
-      }
-
-      // Pattern with wildcards - convert to regex
-      if (pattern.includes("*")) {
-        const regexPattern = new RegExp(
-          `^${pattern.replace(/\*/g, ".*").replace(/\?/g, ".")}$`
-        );
-        if (regexPattern.test(relativePath)) {
-          return true;
-        }
-      }
-    }
-
-    return false;
-  };
-
-  // Context value
-  const gitContext = {
-    showGitStatus,
-    gitStatus,
-    showIgnoredFiles,
-    toggleGitStatus,
-    toggleIgnoredFiles,
-    getFileStatus,
-    isIgnored,
-    setCurrentPath,
-  };
-
-  return (
-    <GitStatusContext.Provider value={gitContext}>
-      {children}
-    </GitStatusContext.Provider>
-  );
+  return <>{children}</>;
 };
 
-// Create the context
+// Backward compatibility context - uses the store internally
 export const GitStatusContext = React.createContext<{
   showGitStatus: boolean;
   gitStatus: GitStatus | null;
@@ -165,10 +53,13 @@ export const GitStatusContext = React.createContext<{
   setCurrentPath: () => {},
 });
 
-// Custom hook for using git status
-export const useGitStatus = () => React.useContext(GitStatusContext);
+// Hook that uses the store - for backward compatibility
+export const useGitStatus = () => {
+  const store = useGitStatusStore();
+  return store;
+};
 
-// Git status UI component
+// Git status UI component - now using the store directly
 export const GitStatusBar: React.FC = () => {
   const {
     showGitStatus,
@@ -176,7 +67,7 @@ export const GitStatusBar: React.FC = () => {
     showIgnoredFiles,
     toggleGitStatus,
     toggleIgnoredFiles,
-  } = useGitStatus();
+  } = useGitStatusStore();
 
   return (
     <div className="flex items-center space-x-2 px-2">
