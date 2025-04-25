@@ -24,27 +24,33 @@ export function ReasoningMessage({ message, dateTime }: ReasoningMessageProps) {
   }
 
   return (
-    <div className="rounded-lg border border-slate-100 border-l-4 border-l-amber-500 bg-white p-3 shadow-sm dark:border-slate-700 dark:bg-slate-800">
+    <div className="rounded-md border border-border border-l-4 border-l-amber-500 bg-background p-3">
       <div className="mb-2 flex items-center justify-between text-xs">
         <div className="flex items-center gap-1.5">
           <div className="flex h-4 w-4 items-center justify-center rounded-full bg-amber-500">
-            <BrainCircuit size={12} className="text-white" />
+            <BrainCircuit size={12} className="text-primary-foreground" />
           </div>
-          <span className="font-medium text-amber-600 dark:text-amber-400">
-            Reasoning
-          </span>
+          <span className="font-medium text-amber-500">Reasoning</span>
           {durationMs > 0 && (
-            <span className="ml-2 text-slate-500">
+            <span className="ml-2 text-muted-foreground">
               ({(durationMs / 1000).toFixed(2)}s)
             </span>
           )}
         </div>
-        <span className="text-slate-400">{dateTime}</span>
+        <span className="text-muted-foreground">{dateTime}</span>
       </div>
-      <div className="whitespace-pre-wrap border-amber-400/30 border-l-2 py-1 pl-3 font-mono text-slate-700 text-sm dark:text-slate-300">
-        {typeof content === "string"
-          ? content.split("\n").map((line, i) => <div key={i}>{line}</div>)
-          : content}
+      <div className="whitespace-pre-wrap border-amber-400/30 border-l-2 py-1 pl-3 font-mono text-sm text-foreground">
+        {typeof content === "string" ? (
+          <div>
+            {content.split("\n").map((line, i) => (
+              <p key={`${message.id || ""}-line-${i}-${line.substring(0, 8)}`}>
+                {line}
+              </p>
+            ))}
+          </div>
+        ) : (
+          content
+        )}
       </div>
     </div>
   );

@@ -8,19 +8,17 @@ interface AssistantMessageProps {
 
 export function AssistantMessage({ message, dateTime }: AssistantMessageProps) {
   return (
-    <div className="rounded-lg border border-slate-100 border-l-4 border-l-blue-500 bg-white p-3 shadow-sm dark:border-slate-700 dark:bg-slate-800">
+    <div className="rounded-md border border-border border-l-4 border-l-blue-500 bg-background p-3">
       <div className="mb-2 flex items-center justify-between text-xs">
         <div className="flex items-center gap-1.5">
           <div className="flex h-4 w-4 items-center justify-center rounded-full bg-blue-500">
-            <Bot size={12} className="text-white" />
+            <Bot size={12} className="text-primary-foreground" />
           </div>
-          <span className="font-medium text-blue-600 dark:text-blue-400">
-            Assistant
-          </span>
+          <span className="font-medium text-blue-500">Assistant</span>
         </div>
-        <span className="text-slate-400">{dateTime}</span>
+        <span className="text-muted-foreground">{dateTime}</span>
       </div>
-      <div className="whitespace-pre-wrap font-mono text-slate-700 text-sm dark:text-slate-300">
+      <div className="whitespace-pre-wrap font-mono text-sm text-foreground">
         {message.content}
       </div>
     </div>

@@ -1,48 +1,100 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 
-interface IDEState {
-  currentAgent: string | null;
-  currentFile: string | null;
-  showFileTree: boolean;
-  showFileContent: boolean;
-  showTerminal: boolean;
-  showCodex: boolean;
+export interface Project {
+	path: string;
+	name: string;
+}
 
-  // Actions
-  setCurrentAgent: (agentId: string | null) => void;
-  setCurrentFile: (fileId: string | null) => void;
-  toggleFileTree: () => void;
-  toggleFileContent: () => void;
-  toggleTerminal: () => void;
-  toggleCodex: () => void;
+interface IDEState {
+	currentAgent: string | null;
+	currentFile: string | null;
+	showFileTree: boolean;
+	showFileContent: boolean;
+	showTerminal: boolean;
+	showCodex: boolean;
+	editorTheme: string;
+	projects: Project[];
+	activeProject: string | null;
+
+	// Actions
+	setCurrentAgent: (agentId: string | null) => void;
+	setCurrentFile: (fileId: string | null) => void;
+	toggleFileTree: () => void;
+	toggleFileContent: () => void;
+	toggleTerminal: () => void;
+	toggleCodex: () => void;
+	setEditorTheme: (theme: string) => void;
+	addProject: (projectPath: string) => void;
+	removeProject: (projectPath: string) => void;
+	setActiveProject: (projectPath: string) => void;
+	getProjectByPath: (projectPath: string) => Project | undefined;
 }
 
 export const useIDEStore = create<IDEState>()(
-  persist(
-    (set) => ({
-      // State
-      currentAgent: null,
-      currentFile: null,
-      showFileTree: true,
-      showFileContent: true,
-      showTerminal: true,
-      showCodex: true,
+	persist(
+		(set, get) => ({
+			// State
+			currentAgent: null,
+			currentFile: null,
+			showFileTree: true,
+			showFileContent: true,
+			showTerminal: true,
+			showCodex: true,
+			editorTheme: "Twilight", // Default theme
+			projects: [],
+			activeProject: null,
 
-      // Actions
-      setCurrentAgent: (agentId: string | null) =>
-        set({ currentAgent: agentId }),
-      setCurrentFile: (fileId: string | null) => set({ currentFile: fileId }),
-      toggleFileTree: () =>
-        set((state) => ({ showFileTree: !state.showFileTree })),
-      toggleFileContent: () =>
-        set((state) => ({ showFileContent: !state.showFileContent })),
-      toggleTerminal: () =>
-        set((state) => ({ showTerminal: !state.showTerminal })),
-      toggleCodex: () => set((state) => ({ showCodex: !state.showCodex })),
-    }),
-    {
-      name: "ide-storage", // unique name for localStorage key
-    }
-  )
+			// Actions
+			setCurrentAgent: (agentId: string | null) =>
+				set({ currentAgent: agentId }),
+			setCurrentFile: (fileId: string | null) => set({ currentFile: fileId }),
+			toggleFileTree: () =>
+				set((state) => ({ showFileTree: !state.showFileTree })),
+			toggleFileContent: () =>
+				set((state) => ({ showFileContent: !state.showFileContent })),
+			toggleTerminal: () =>
+				set((state) => ({ showTerminal: !state.showTerminal })),
+			toggleCodex: () => set((state) => ({ showCodex: !state.showCodex })),
+			setEditorTheme: (theme: string) => set({ editorTheme: theme }),
+
+			addProject: (projectPath: string) =>
+				set((state) => {
+					const projectName = projectPath.split("/").pop() || projectPath;
+					const newProject = { path: projectPath, name: projectName };
+
+					// Check if project already exists
+					if (state.projects.some((p) => p.path === projectPath)) {
+						return {
+							...state,
+							activeProject: projectPath,
+						};
+					}
+
+					return {
+						projects: [...state.projects, newProject],
+						activeProject: projectPath,
+					};
+				}),
+
+			removeProject: (projectPath: string) =>
+				set((state) => ({
+					projects: state.projects.filter((p) => p.path !== projectPath),
+					activeProject:
+						state.activeProject === projectPath ? null : state.activeProject,
+				})),
+
+			setActiveProject: (projectPath: string) =>
+				set(() => ({
+					activeProject: projectPath,
+				})),
+
+			getProjectByPath: (projectPath: string) => {
+				return get().projects.find((p) => p.path === projectPath);
+			},
+		}),
+		{
+			name: "ide-store",
+		},
+	),
 );

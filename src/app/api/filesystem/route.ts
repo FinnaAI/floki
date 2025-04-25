@@ -1,13 +1,14 @@
-import { execSync } from "child_process";
-import * as fs from "fs";
-import * as os from "os";
-import * as path from "path";
-import * as util from "util";
+import { execSync } from "node:child_process";
+import * as fs from "node:fs";
+import * as os from "node:os";
+import * as path from "node:path";
+import * as util from "node:util";
 import { NextResponse } from "next/server";
 
 const readdir = util.promisify(fs.readdir);
 const stat = util.promisify(fs.stat);
 const readFile = util.promisify(fs.readFile);
+const writeFile = util.promisify(fs.writeFile);
 
 // Function to expand tilde in paths
 function expandTilde(filePath: string): string {
@@ -129,7 +130,7 @@ function getGitStatus(dirPath: string, includeIgnored = false) {
 			ignored: [] as string[],
 		};
 
-		files.forEach((file) => {
+		for (const file of files) {
 			const status = file.substring(0, 2).trim();
 			const filepath = file.substring(3);
 
@@ -142,7 +143,7 @@ function getGitStatus(dirPath: string, includeIgnored = false) {
 			} else if (status === "??") {
 				statusMap.untracked.push(filepath);
 			}
-		});
+		}
 
 		// Get ignored files if requested
 		if (includeIgnored) {
@@ -325,7 +326,11 @@ export async function GET(request: Request) {
 			});
 		}
 
-		const response: any = {
+		const response: {
+			path: string;
+			files: FileInfo[];
+			git?: ReturnType<typeof getGitStatus>;
+		} = {
 			path: dirPath,
 			files,
 		};
@@ -362,6 +367,11 @@ export async function POST(request: Request) {
 			? expandTilde(filePath)
 			: filePath;
 
+		// remove any leading "project-name/" so we're always relative
+		if (expandedPath.startsWith(`${folderHandle.name}/`)) {
+			expandedPath = expandedPath.slice(folderHandle.name.length + 1);
+		}
+
 		try {
 			const stats = await stat(expandedPath);
 
@@ -387,6 +397,112 @@ export async function POST(request: Request) {
 			);
 		}
 	} catch (error) {
+		return NextResponse.json({ error: "Invalid request" }, { status: 400 });
+	}
+}
+
+// PUT endpoint to write/save file content
+export async function PUT(request: Request) {
+	try {
+		const { filePath, content } = await request.json();
+
+		if (!filePath) {
+			return NextResponse.json(
+				{ error: "File path is required" },
+				{ status: 400 },
+			);
+		}
+
+		if (content === undefined) {
+			return NextResponse.json(
+				{ error: "File content is required" },
+				{ status: 400 },
+			);
+		}
+
+		// Expand tilde in path if present
+		const expandedPath = filePath.startsWith("~")
+			? expandTilde(filePath)
+			: filePath;
+
+		// Security check - ensure the path is within allowed boundaries
+		const projectRoot = process.cwd();
+
+		// Normalize the path to resolve any '..' or '.' segments
+		const normalizedPath = path.normalize(expandedPath);
+
+		// Ensure the path exists within the allowed base directory for security
+		if (
+			!normalizedPath.startsWith(BASE_PATH) &&
+			normalizedPath !== projectRoot &&
+			!normalizedPath.startsWith(projectRoot)
+		) {
+			return NextResponse.json(
+				{ error: "Access denied: path outside allowed directory" },
+				{ status: 403 },
+			);
+		}
+
+		// Don't allow writing to system directories
+		const systemDirs = [
+			"/bin",
+			"/boot",
+			"/dev",
+			"/etc",
+			"/lib",
+			"/proc",
+			"/sbin",
+			"/sys",
+			"/var",
+			"C:\\Windows",
+			"C:\\Program Files",
+			"C:\\Program Files (x86)",
+		];
+
+		if (systemDirs.some((dir) => normalizedPath.startsWith(dir))) {
+			return NextResponse.json(
+				{ error: "Access denied: system directories are restricted" },
+				{ status: 403 },
+			);
+		}
+
+		try {
+			// Check if parent directory exists
+			const parentDir = path.dirname(normalizedPath);
+			const parentDirExists = fs.existsSync(parentDir);
+
+			if (!parentDirExists) {
+				return NextResponse.json(
+					{ error: "Parent directory does not exist" },
+					{ status: 400 },
+				);
+			}
+
+			// Write the file content
+			await writeFile(normalizedPath, content, "utf-8");
+
+			// Get updated stats
+			const stats = await stat(normalizedPath);
+
+			return NextResponse.json({
+				path: normalizedPath,
+				size: stats.size,
+				lastModified: stats.mtime,
+				success: true,
+				message: "File saved successfully",
+			});
+		} catch (error) {
+			console.error(`Error writing file ${normalizedPath}:`, error);
+			return NextResponse.json(
+				{
+					error: "Failed to write file",
+					details: (error as Error).message,
+				},
+				{ status: 500 },
+			);
+		}
+	} catch (error) {
+		console.error("Invalid PUT request:", error);
 		return NextResponse.json({ error: "Invalid request" }, { status: 400 });
 	}
 }

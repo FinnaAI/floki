@@ -5,3 +5,7 @@ export type WorkerMessageT<T> = {
     data: T;
   };
 };
+
+export type CryptoWorkConfigT = {
+  assets: string; // bitcoin,ethereum,monero,litecoin
+};

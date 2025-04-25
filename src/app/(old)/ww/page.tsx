@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import type { WorkerMessageT } from "@/types/workers/worker-message";
-import type { CryptoWorkConfigT } from "workers/main";
+import type { CryptoWorkConfigT } from "@/workers/main";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 

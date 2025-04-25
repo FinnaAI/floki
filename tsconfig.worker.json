@@ -5,5 +5,5 @@
     "module": "ES6",
     "noEmit": false
   },
-  "include": ["workers/**/*.ts"]
+  "include": ["src/workers/**/*.ts"]
 }

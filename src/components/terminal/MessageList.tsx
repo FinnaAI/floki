@@ -32,16 +32,14 @@ export function MessageList({ messages, envVars }: MessageListProps) {
   if (filteredMessages.length === 0) {
     return (
       <div className="flex h-64 flex-col items-center justify-center space-y-3">
-        <div className="flex h-14 w-14 items-center justify-center rounded-full bg-slate-100 dark:bg-slate-800">
-          <TerminalIcon size={28} className="text-emerald-500" />
+        <div className="flex h-12 w-12 items-center justify-center rounded-full bg-secondary/20">
+          <TerminalIcon size={24} className="text-primary" />
         </div>
         <div className="space-y-1 text-center">
-          <p className="font-medium text-slate-700 dark:text-slate-300">
-            Welcome to the Terminal
-          </p>
-          <p className="text-slate-500 text-sm dark:text-slate-400">
+          <p className="font-medium text-foreground">Welcome to the Terminal</p>
+          <p className="text-muted-foreground text-sm">
             Type{" "}
-            <code className="rounded bg-slate-200 px-1.5 py-0.5 font-mono text-emerald-600 text-xs dark:bg-slate-700 dark:text-emerald-400">
+            <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-primary text-xs">
               help
             </code>{" "}
             to see available commands
@@ -53,23 +51,34 @@ export function MessageList({ messages, envVars }: MessageListProps) {
 
   return (
     <div className="flex flex-col gap-2 space-y-3">
-      {filteredMessages.map((message, index) => {
+      {filteredMessages.map((message) => {
         const dateTime = message.timestamp.toLocaleTimeString([], {
           hour: "2-digit",
           minute: "2-digit",
           second: "2-digit",
         });
 
+        // Use message ID or a combination of type and timestamp for the key
+        const messageKey =
+          message.id ||
+          `${message.type}-${message.timestamp.getTime()}-${Math.random()
+            .toString(36)
+            .substring(2, 9)}`;
+
         switch (message.type) {
           case "user":
             return (
-              <UserMessage key={index} message={message} dateTime={dateTime} />
+              <UserMessage
+                key={messageKey}
+                message={message}
+                dateTime={dateTime}
+              />
             );
 
           case "system":
             return (
               <SystemMessage
-                key={index}
+                key={messageKey}
                 message={message}
                 dateTime={dateTime}
                 envVars={envVars}
@@ -79,7 +88,7 @@ export function MessageList({ messages, envVars }: MessageListProps) {
           case "assistant":
             return (
               <AssistantMessage
-                key={index}
+                key={messageKey}
                 message={message}
                 dateTime={dateTime}
               />
@@ -88,7 +97,7 @@ export function MessageList({ messages, envVars }: MessageListProps) {
           case "reasoning":
             return (
               <ReasoningMessage
-                key={index}
+                key={messageKey}
                 message={message}
                 dateTime={dateTime}
               />

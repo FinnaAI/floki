@@ -88,9 +88,9 @@ export function VsTerminal({ autoConnect = false }: { autoConnect?: boolean }) {
 
   return (
     <div className="flex h-full w-full flex-col overflow-hidden">
-      <div className="relative flex h-full w-full flex-col overflow-hidden border border-slate-200 bg-gradient-to-b from-slate-50 to-white shadow-lg dark:border-slate-800 dark:from-slate-950 dark:to-slate-900">
+      <div className="relative flex h-full w-full flex-col overflow-hidden">
         {/* Header - fixed to top */}
-        <div className="sticky top-0 z-10 flex items-center justify-between border-slate-200 border-b bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+        <div className="sticky top-0 z-10 flex items-center justify-between border-slate-200 border-b p-4 shadow-sm">
           {/* <div className="flex items-center gap-2">
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-500 shadow-sm">
               <TerminalIcon size={20} className="text-white" />
@@ -99,11 +99,14 @@ export function VsTerminal({ autoConnect = false }: { autoConnect?: boolean }) {
               Terminal
             </h1>
           </div> */}
+          <div className="flex h-8 items-center justify-between px-4 text-xs">
+            <div>Terminal</div>
+          </div>
           <div className="flex items-center space-x-2">
             {loading && (
               <div className="mr-2 flex items-center">
-                <RotateCw size={16} className="animate-spin text-slate-500" />
-                <span className="ml-2 text-slate-500 text-sm">Loading...</span>
+                <RotateCw size={16} className="animate-spin " />
+                <span className="ml-2 text-sm">Loading...</span>
               </div>
             )}
             {error && (
@@ -112,7 +115,7 @@ export function VsTerminal({ autoConnect = false }: { autoConnect?: boolean }) {
                 <span className="ml-2 text-sm">{error}</span>
               </div>
             )}
-            <Button
+            {/* <Button
               variant="outline"
               size="sm"
               onClick={() => setShowEnvModal(true)}
@@ -120,7 +123,8 @@ export function VsTerminal({ autoConnect = false }: { autoConnect?: boolean }) {
             >
               <Command size={16} className="mr-1.5 text-emerald-500" />
               <span>ENV</span>
-            </Button>
+            </Button> */}
+
             <Button
               variant={connected ? "outline" : "default"}
               size="sm"
@@ -158,7 +162,7 @@ export function VsTerminal({ autoConnect = false }: { autoConnect?: boolean }) {
             >
               Clear
             </Button>
-            <Button
+            {/* <Button
               variant="destructive"
               size="sm"
               disabled={!connected}
@@ -175,7 +179,7 @@ export function VsTerminal({ autoConnect = false }: { autoConnect?: boolean }) {
             >
               <Square size={16} className="mr-1.5" />
               <span>Kill</span>
-            </Button>
+            </Button> */}
           </div>
         </div>
 

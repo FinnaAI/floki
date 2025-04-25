@@ -1,14 +1,15 @@
 "use client";
 
 import React, { useState, useMemo, useCallback } from "react";
-import FileViewer from "@/components/FileViewer";
+import { FileViewer } from "@/components/FileViewer";
 import type { FileInfo, FileDiff } from "@/types/files";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useFileStore } from "@/store/file-store";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { Button } from "@/components/ui/button";
-import { File, FileText, Loader2 } from "lucide-react";
-import SyntaxHighlighter from "react-syntax-highlighter";
+import { toast } from "sonner";
+import { createFileSystem } from "@/lib/file-system";
+
+// Create file system instance
+const fileSystem = createFileSystem();
 
 // View types that will be supported
 export type ViewType = "code" | "graph" | "components" | "preview";
@@ -19,11 +20,19 @@ interface ViewComponentProps {
   fileDiff: FileDiff | null;
   loading: boolean;
   error: string | null;
+  onFileContentChange?: (newContent: string) => void;
 }
 
 // Standard code view component
 const CodeView = React.memo<ViewComponentProps>(
-  ({ selectedFile, fileContent, fileDiff, loading, error }) => {
+  ({
+    selectedFile,
+    fileContent,
+    fileDiff,
+    loading,
+    error,
+    onFileContentChange,
+  }) => {
     return (
       <FileViewer
         selectedFile={selectedFile}
@@ -31,6 +40,7 @@ const CodeView = React.memo<ViewComponentProps>(
         fileDiff={fileDiff}
         loading={loading}
         error={error}
+        onFileContentChange={onFileContentChange}
       />
     );
   }
@@ -128,6 +138,7 @@ const FileViewerContent = React.memo<FileViewerContentProps>(
     error,
     activeView,
     onViewChange,
+    onFileContentChange,
   }) => {
     // Determine which view types are available for the current file
     const getAvailableViews = useCallback((): ViewType[] => {
@@ -168,7 +179,7 @@ const FileViewerContent = React.memo<FileViewerContentProps>(
     return (
       <div className="flex h-full flex-col overflow-hidden">
         {selectedFile && (
-          <div className="border-b border-slate-200 dark:border-slate-700">
+          <div className="">
             <Tabs
               value={activeView}
               onValueChange={(value) => onViewChange(value as ViewType)}
@@ -204,6 +215,7 @@ const FileViewerContent = React.memo<FileViewerContentProps>(
             fileDiff={fileDiff}
             loading={loading}
             error={error}
+            onFileContentChange={onFileContentChange}
           />
         </div>
       </div>
@@ -223,6 +235,34 @@ export const FileViewerPanel: React.FC = () => {
   const handleViewChange = useCallback((view: ViewType) => {
     setActiveView(view);
   }, []);
+
+  // Handle file content changes
+  const handleFileContentChange = useCallback(
+    async (newContent: string) => {
+      if (!selectedFile) return;
+
+      try {
+        // Show loading toast
+        toast.loading(`Saving ${selectedFile.name}...`);
+
+        // Save the file using the file system
+        await fileSystem.writeFile(selectedFile.path, newContent);
+
+        // Update the local content
+        useFileStore.setState({ fileContent: newContent });
+
+        toast.success(`File ${selectedFile.name} saved successfully`);
+      } catch (error) {
+        console.error("Error saving file:", error);
+        toast.error(
+          `Failed to save ${selectedFile.name}: ${
+            error instanceof Error ? error.message : String(error)
+          }`
+        );
+      }
+    },
+    [selectedFile]
+  );
 
   // Memoize the current file content state to prevent changes when switching folders
   const fileState = useMemo(() => {
@@ -256,6 +296,7 @@ export const FileViewerPanel: React.FC = () => {
         error={fileState.error}
         activeView={activeView}
         onViewChange={handleViewChange}
+        onFileContentChange={handleFileContentChange}
       />
     </div>
   );
