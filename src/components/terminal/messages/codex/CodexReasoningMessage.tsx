@@ -1,5 +1,3 @@
-import React from "react";
-
 interface CodexReasoningMessageProps {
 	data: string;
 	dateTime: string;
@@ -18,9 +16,9 @@ export function CodexReasoningMessage({
 				<span className="text-gray-400">{dateTime}</span>
 			</div>
 			<div className="whitespace-pre-wrap rounded border-yellow-500 border-l bg-slate-950 p-2 pl-3 font-mono text-sm text-yellow-100">
-				{data.split("\n").map((line, i) => (
+				{data.split("\n").map((line) => (
 					<div
-						key={i}
+						key={line.trim()}
 						className={line.startsWith("**") ? "font-bold text-yellow-300" : ""}
 					>
 						{line}

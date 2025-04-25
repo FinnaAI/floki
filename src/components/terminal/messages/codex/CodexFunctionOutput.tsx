@@ -1,10 +1,14 @@
-import React from "react";
-
 interface CodexFunctionOutputProps {
-	data: any;
+	data: {
+		call_id: string;
+		output: string;
+		metadata: {
+			exit_code?: number;
+			duration_seconds?: number;
+		};
+	};
 	dateTime: string;
 }
-
 export function CodexFunctionOutput({
 	data,
 	dateTime,
@@ -29,7 +33,7 @@ export function CodexFunctionOutput({
 	const metadata = parsedOutput?.metadata || {};
 
 	// Format output to handle deep nesting
-	const formatOutput = (output: any) => {
+	const formatOutput = (output: { output: string }) => {
 		if (typeof output === "string") {
 			return output;
 		}

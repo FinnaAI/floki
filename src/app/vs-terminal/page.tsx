@@ -1,7 +1,6 @@
 "use client";
 
 import { VsTerminal } from "@/components/terminal/VsTerminal";
-import React from "react";
 
 export default function VsTerminalPage() {
 	return (

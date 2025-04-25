@@ -1,9 +1,9 @@
 export default async function EditorPage({
-  params,
+	params,
 }: {
-  params: { filePath: string };
+	params: { filePath: string };
 }) {
-  const filePath = params.filePath;
+	const filePath = params.filePath;
 
-  return <div className="flex flex-col h-full">editor {filePath}</div>;
+	return <div className="flex h-full flex-col">editor {filePath}</div>;
 }

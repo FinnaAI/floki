@@ -27,6 +27,11 @@
 					"fix": "safe"
 				}
 			},
+			"a11y": {
+				"noSvgWithoutTitle": {
+					"level": "off"
+				}
+			},
 			"recommended": true,
 			"style": {
 				"useNodejsImportProtocol": {

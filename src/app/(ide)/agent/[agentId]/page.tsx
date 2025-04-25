@@ -1,30 +1,30 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
 import { useIDEStore } from "@/store/ide-store";
+import { useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
 
 export default function AgentPage({
-  params,
+	params,
 }: {
-  params: Promise<{ agentId: string }>;
+	params: Promise<{ agentId: string }>;
 }) {
-  const router = useRouter();
-  const setCurrentAgent = useIDEStore((state) => state.setCurrentAgent);
-  const [isLoaded, setIsLoaded] = useState(false);
+	const router = useRouter();
+	const setCurrentAgent = useIDEStore((state) => state.setCurrentAgent);
+	const [isLoaded, setIsLoaded] = useState(false);
 
-  useEffect(() => {
-    async function loadParams() {
-      const resolvedParams = await params;
-      const { agentId } = resolvedParams;
+	useEffect(() => {
+		async function loadParams() {
+			const resolvedParams = await params;
+			const { agentId } = resolvedParams;
 
-      setCurrentAgent(agentId);
-      router.push("/ide");
-      setIsLoaded(true);
-    }
+			setCurrentAgent(agentId);
+			router.push("/ide");
+			setIsLoaded(true);
+		}
 
-    loadParams();
-  }, [params, router, setCurrentAgent]);
+		loadParams();
+	}, [params, router, setCurrentAgent]);
 
-  return null;
+	return null;
 }

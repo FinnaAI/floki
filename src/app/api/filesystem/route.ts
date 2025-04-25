@@ -363,7 +363,7 @@ export async function POST(request: Request) {
 		}
 
 		// Expand tilde in path if present
-		const expandedPath = filePath.startsWith("~")
+		let expandedPath = filePath.startsWith("~")
 			? expandTilde(filePath)
 			: filePath;
 

@@ -1,5 +1,3 @@
-import React from "react";
-
 interface CodexQueryMessageProps {
 	query: string;
 	dateTime: string;

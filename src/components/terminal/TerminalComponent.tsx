@@ -1,11 +1,10 @@
 "use client";
 
-import React, { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 import type { Terminal } from "xterm";
 // eslint-disable-next-line import/no-extraneous-dependencies
 import type { IDisposable } from "xterm";
 import type { FitAddon } from "xterm-addon-fit";
-import type { WebLinksAddon } from "xterm-addon-web-links";
 import { useEnvVars } from "./useEnvVars";
 
 interface TerminalComponentProps {

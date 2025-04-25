@@ -1,9 +1,9 @@
 export default function TerminalPage({
-  params,
+	params,
 }: {
-  params: { terminalId: string };
+	params: { terminalId: string };
 }) {
-  return (
-    <div className="flex flex-col h-full">terminal {params.terminalId}</div>
-  );
+	return (
+		<div className="flex h-full flex-col">terminal {params.terminalId}</div>
+	);
 }

@@ -1,6 +1,5 @@
 import { type ChildProcess, exec, spawn } from "node:child_process";
 import { createServer } from "node:http";
-import path from "node:path";
 import { promisify } from "node:util";
 import { NextResponse } from "next/server";
 import { type WebSocket, WebSocketServer } from "ws";

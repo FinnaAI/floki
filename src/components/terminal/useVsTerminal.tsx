@@ -2,9 +2,8 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Terminal } from "xterm";
-import type { ITerminalOptions, ITheme } from "xterm";
+import type { ITheme } from "xterm";
 import type { FitAddon } from "xterm-addon-fit";
-import type { WebLinksAddon } from "xterm-addon-web-links";
 import { useEnvVars } from "./useEnvVars";
 
 export interface TerminalOptions {

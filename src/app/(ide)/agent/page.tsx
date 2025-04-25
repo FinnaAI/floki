@@ -1,15 +1,15 @@
 "use client";
 
-import { useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { useEffect } from "react";
 
 export default function AgentIndexPage() {
-  const router = useRouter();
+	const router = useRouter();
 
-  // Redirect to IDE with default agent
-  useEffect(() => {
-    router.push("/ide");
-  }, [router]);
+	// Redirect to IDE with default agent
+	useEffect(() => {
+		router.push("/ide");
+	}, [router]);
 
-  return null;
+	return null;
 }

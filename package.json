@@ -101,10 +101,7 @@
 		"directories": {
 			"output": "dist"
 		},
-		"files": [
-			"dist/**/*",
-			"out/**/*"
-		],
+		"files": ["dist/**/*", "out/**/*"],
 		"mac": {
 			"category": "public.app-category.developer-tools"
 		}

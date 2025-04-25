@@ -106,7 +106,9 @@ const FileViewer = ({
 	const [availableThemes, setAvailableThemes] = useState<string[]>([]);
 	const editorRef = useRef<Parameters<OnMount>[0] | null>(null);
 	const monacoRef = useRef<Monaco | null>(null);
-	const diffEditorRef = useRef<any>(null);
+	const diffEditorRef = useRef<
+		Parameters<typeof MonacoDiffEditor>["onMount"][0] | null
+	>(null);
 	const { getFileStatus } = useGitStatusStore();
 	const { editorTheme, setEditorTheme } = useIDEStore();
 
@@ -152,7 +154,7 @@ const FileViewer = ({
 		editor.updateOptions({
 			renderWhitespace: "none", // Disable whitespace rendering
 			renderControlCharacters: false, // Disable control character rendering
-			renderIndentGuides: false, // Disable indent guides
+			guides: { indentation: false }, // Disable indent guides (correct property)
 			renderLineHighlight: "none", // Disable current line highlighting
 			renderValidationDecorations: "editable", // Only show validation decorations when editing
 			scrollBeyondLastLine: false,
@@ -295,7 +297,7 @@ const FileViewer = ({
 				<div className="flex items-center px-4 text-sm">
 					{selectedFile ? (
 						<span className="truncate font-medium text-xs">
-							{selectedFile.path.replace(currentPath + "/", "")}
+							{selectedFile.path.replace(`${currentPath}/`, "")}
 
 							{/* Edit toggle button */}
 							{selectedFile && !isImageFile && !showDiffEditor && (
@@ -414,7 +416,6 @@ const FileViewer = ({
 												diffWordWrap: "on",
 												renderWhitespace: "none",
 												renderControlCharacters: false,
-												renderIndentGuides: false,
 												renderLineHighlight: "none",
 											}}
 											onMount={handleDiffEditorDidMount}
@@ -483,7 +484,6 @@ const FileViewer = ({
 													automaticLayout: true,
 													renderWhitespace: "none",
 													renderControlCharacters: false,
-													renderIndentGuides: false,
 													renderLineHighlight: "none",
 													quickSuggestions: false,
 													folding: false,
