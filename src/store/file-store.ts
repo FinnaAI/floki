@@ -11,6 +11,13 @@ import type { FileDiff } from "@/types/files";
 import { create } from "zustand";
 import { useGitStatusStore } from "./git-status-store";
 
+// Helper to get parent path
+const getParentPath = (filePath: string): string => {
+	const idx = filePath.lastIndexOf("/");
+	if (idx === -1) return "";
+	return filePath.substring(0, idx);
+};
+
 // Create file system instance
 const fileSystem = createFileSystem() as FileSystem;
 
@@ -94,6 +101,7 @@ interface FileState {
 	createFolder: (parentDir: string, folderName: string) => Promise<void>;
 	deleteFile: (filePath: string) => Promise<void>;
 	renameItem: (oldPath: string, newName: string) => Promise<void>;
+	saveFileContent: (filePath: string, content: string) => Promise<void>;
 }
 
 // Type guard for WebFileSystem
@@ -250,6 +258,42 @@ export const useFileStore = create<FileState>((set, get) => ({
 	loadFileContent: async (fileInfo: FileInfo) => {
 		const state = get();
 		const gitStore = useGitStatusStore.getState();
+
+		// Check if we need to save the current file before switching
+		if (state.selectedFile && state.selectedFile.path !== fileInfo.path) {
+			// Attempt to get editor content from window if available
+			try {
+				// Use a safer approach to access Monaco editor
+				const editorElement = document.querySelector("[data-monaco-editor-id]");
+				if (editorElement) {
+					// Define a type for Monaco editor with the properties we need
+					interface MonacoEditorInstance {
+						_modelData?: {
+							viewModel?: {
+								editor?: {
+									getValue: () => string;
+								};
+							};
+						};
+					}
+
+					// Use type assertion with a more specific type
+					const editorInstance = (
+						editorElement as unknown as MonacoEditorInstance
+					)?._modelData?.viewModel?.editor;
+					if (editorInstance && typeof editorInstance.getValue === "function") {
+						const currentContent = editorInstance.getValue();
+						// Save the current file before loading the new one
+						await state.saveFileContent(
+							state.selectedFile.path,
+							currentContent,
+						);
+					}
+				}
+			} catch (err) {
+				console.error("Error saving previous file:", err);
+			}
+		}
 
 		// Make sure we're using the correct folder handle before any file operation
 		const syncHandle = () => {
@@ -429,6 +473,20 @@ export const useFileStore = create<FileState>((set, get) => ({
 	// Reload current directory
 	refreshDirectory: () => {
 		const { currentPath, loadDirectory } = get();
+
+		// First, if we're in a sub-directory, also refresh the parent directory
+		if (currentPath) {
+			const parentPath = getParentPath(currentPath);
+			if (parentPath && parentPath !== currentPath) {
+				console.log("Refreshing parent directory:", parentPath);
+				// Load parent directory content if needed
+				const fileStore = get();
+				fileStore.loadDirectoryChildren(parentPath);
+			}
+		}
+
+		console.log("Refreshing current directory:", currentPath);
+		// Now refresh the current directory - force reload by passing true for clearCache
 		loadDirectory(currentPath, false);
 	},
 
@@ -723,8 +781,32 @@ export const useFileStore = create<FileState>((set, get) => ({
 			}
 
 			// Success - reload the directory to show the new file
-			const { loadDirectory } = get();
-			await loadDirectory(parentDir, false);
+			console.log("File created successfully:", fullPath);
+
+			// Add the new file to our files list immediately so UI updates
+			const newFileInfo: FileInfo = {
+				name: fileName,
+				path: fullPath,
+				isDirectory: false,
+				lastModified: new Date(),
+				size: 0,
+			};
+
+			set((state) => {
+				// Add to existing files if not already there
+				const fileExists = state.files.some((f) => f.path === fullPath);
+				if (!fileExists) {
+					return {
+						files: [...state.files, newFileInfo],
+						filteredFiles: [...state.filteredFiles, newFileInfo],
+					};
+				}
+				return state;
+			});
+
+			// Now reload directories
+			const { refreshDirectory } = get();
+			refreshDirectory();
 		} catch (error) {
 			console.error("Error creating file:", error);
 			throw error;
@@ -754,8 +836,32 @@ export const useFileStore = create<FileState>((set, get) => ({
 			}
 
 			// Success - reload the directory to show the new folder
-			const { loadDirectory } = get();
-			await loadDirectory(parentDir, false);
+			console.log("Folder created successfully:", fullPath);
+
+			// Add the new folder to our files list immediately so UI updates
+			const newFolderInfo: FileInfo = {
+				name: folderName,
+				path: fullPath,
+				isDirectory: true,
+				lastModified: new Date(),
+				size: 0,
+			};
+
+			set((state) => {
+				// Add to existing files if not already there
+				const folderExists = state.files.some((f) => f.path === fullPath);
+				if (!folderExists) {
+					return {
+						files: [...state.files, newFolderInfo],
+						filteredFiles: [...state.filteredFiles, newFolderInfo],
+					};
+				}
+				return state;
+			});
+
+			// Now reload directories
+			const { refreshDirectory } = get();
+			refreshDirectory();
 		} catch (error) {
 			console.error("Error creating folder:", error);
 			throw error;
@@ -853,6 +959,59 @@ export const useFileStore = create<FileState>((set, get) => ({
 		} catch (error) {
 			console.error("Error renaming item:", error);
 			throw error;
+		}
+	},
+
+	saveFileContent: async (filePath: string, content: string) => {
+		const state = get();
+		set({ fileLoading: true, error: null });
+
+		try {
+			// Make sure we're using the correct folder handle
+			const syncHandle = () => {
+				const activeProject = useIDEStore.getState().activeProject;
+				if (!activeProject) return;
+
+				const handle = get().projectHandles[activeProject];
+				if (!handle) {
+					console.error(
+						`Handle not found for active project: ${activeProject}`,
+					);
+					return;
+				}
+
+				// Update file system handle
+				console.log(
+					`Syncing file system handle to match active project: ${activeProject}`,
+				);
+				(
+					fileSystem as unknown as { folderHandle?: FileSystemDirectoryHandle }
+				).folderHandle = handle;
+			};
+
+			syncHandle();
+
+			// Write the file content
+			await fileSystem.writeFile(filePath, content);
+
+			// Update the store's file content
+			set({
+				fileContent: content,
+				fileLoading: false,
+				error: null,
+			});
+
+			// Refresh git status if available
+			const gitStore = useGitStatusStore.getState();
+			if (gitStore.showGitStatus) {
+				await gitStore.fetchGitStatus();
+			}
+		} catch (err) {
+			console.error("Error saving file:", err);
+			set({
+				error: err instanceof Error ? err.message : "Failed to save file",
+				fileLoading: false,
+			});
 		}
 	},
 }));

@@ -3,10 +3,11 @@
 import { FileViewer } from "@/components/file-monaco-editor";
 import { TiptapViewer } from "@/components/tiptap-editor";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useDebounce } from "@/hooks/use-debounce";
 import { createFileSystem } from "@/lib/file-system";
 import { useFileStore } from "@/store/file-store";
 import type { FileDiff, FileInfo } from "@/types/files";
-import React, { useState, useMemo, useCallback } from "react";
+import React, { useState, useMemo, useCallback, useEffect } from "react";
 import { toast } from "sonner";
 
 // Create file system instance
@@ -171,7 +172,7 @@ const FileViewerContent = React.memo<FileViewerContentProps>(
 			}
 
 			return availableViews;
-		}, [selectedFile]); // Keep the whole selectedFile as dependency to satisfy linter
+		}, [selectedFile?.name]); // Only depend on the file name, not the whole object
 
 		const availableViews = useMemo(
 			() => getAvailableViews(),
@@ -179,7 +180,7 @@ const FileViewerContent = React.memo<FileViewerContentProps>(
 		);
 
 		// If the current active view is not available, default to code
-		React.useEffect(() => {
+		useEffect(() => {
 			if (selectedFile && !availableViews.includes(activeView)) {
 				onViewChange("code");
 			}
@@ -187,6 +188,26 @@ const FileViewerContent = React.memo<FileViewerContentProps>(
 
 		// Get the appropriate view component
 		const ViewComponent = viewComponents[activeView];
+
+		// Memoize the view component props to prevent unnecessary rerenders
+		const viewProps = useMemo(
+			() => ({
+				selectedFile,
+				fileContent,
+				fileDiff,
+				loading,
+				error,
+				onFileContentChange,
+			}),
+			[
+				selectedFile?.path,
+				fileContent,
+				fileDiff,
+				loading,
+				error,
+				onFileContentChange,
+			],
+		);
 
 		return (
 			<div className="flex h-full flex-col overflow-hidden">
@@ -221,14 +242,7 @@ const FileViewerContent = React.memo<FileViewerContentProps>(
 				)}
 
 				<div className="w-full flex-1 overflow-hidden">
-					<ViewComponent
-						selectedFile={selectedFile}
-						fileContent={fileContent}
-						fileDiff={fileDiff}
-						loading={loading}
-						error={error}
-						onFileContentChange={onFileContentChange}
-					/>
+					<ViewComponent {...viewProps} />
 				</div>
 			</div>
 		);
@@ -243,13 +257,13 @@ export const FileViewerPanel: React.FC = () => {
 		useFileStore();
 	const [activeView, setActiveView] = useState<ViewType>("code");
 
-	// Memoize the onViewChange callback to prevent FileViewerContent from re-rendering unnecessarily
+	// Memoize the onViewChange callback
 	const handleViewChange = useCallback((view: ViewType) => {
 		setActiveView(view);
 	}, []);
 
-	// Handle file content changes
-	const handleFileContentChange = useCallback(
+	// Create the file content change handler
+	const handleContentChange = useCallback(
 		async (newContent: string) => {
 			if (!selectedFile) return;
 
@@ -276,16 +290,23 @@ export const FileViewerPanel: React.FC = () => {
 		[selectedFile],
 	);
 
-	// Memoize the current file content state to prevent changes when switching folders
-	const fileState = useMemo(() => {
-		return {
+	// Create debounced version of the handler
+	const { debouncedCallback: handleFileContentChange } = useDebounce(
+		handleContentChange,
+		500,
+	);
+
+	// Memoize the current file state to prevent changes when switching folders
+	const fileState = useMemo(
+		() => ({
 			selectedFile,
 			fileContent,
 			fileDiff,
 			loading: fileLoading,
 			error,
-		};
-	}, [selectedFile, fileContent, fileDiff, fileLoading, error]);
+		}),
+		[selectedFile?.path, fileContent, fileDiff, fileLoading, error],
+	);
 
 	// No file selected - doesn't depend on loading state
 	if (!selectedFile) {
@@ -301,11 +322,7 @@ export const FileViewerPanel: React.FC = () => {
 	return (
 		<div className="h-full w-full overflow-hidden">
 			<FileViewerContent
-				selectedFile={fileState.selectedFile}
-				fileContent={fileState.fileContent}
-				fileDiff={fileState.fileDiff}
-				loading={fileState.loading}
-				error={fileState.error}
+				{...fileState}
 				activeView={activeView}
 				onViewChange={handleViewChange}
 				onFileContentChange={handleFileContentChange}

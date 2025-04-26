@@ -9,6 +9,7 @@ interface WorkerMessage {
 	pollInterval?: number;
 	fileName?: string; // Add for file/folder creation
 	isDirectory?: boolean; // Add for directory creation
+	content?: string; // Add for file writing
 }
 
 let folderHandle: FileSystemDirectoryHandle | null = null;
@@ -441,6 +442,65 @@ self.onmessage = async ({ data }: MessageEvent<WorkerMessage>) => {
 						error instanceof Error
 							? error.message
 							: "Failed to delete file/folder",
+					messageId: data.messageId,
+				});
+			}
+			break;
+		}
+
+		case "writeFile": {
+			if (
+				!folderHandle ||
+				!data.messageId ||
+				!data.path ||
+				data.content === undefined
+			) {
+				console.error("[Worker] Cannot write file - missing parameters");
+				self.postMessage({
+					type: "error",
+					error: "Missing parameters for file writing",
+					messageId: data.messageId,
+				});
+				break;
+			}
+
+			try {
+				// Get the directory and file name from the path
+				const pathParts = data.path.split("/");
+				const fileName = pathParts.pop() || "";
+				const dirPath = pathParts.join("/");
+
+				console.log(
+					"[Worker] Writing file:",
+					fileName,
+					"in directory:",
+					dirPath,
+				);
+
+				const dirHandle = await getDirHandleFromPath(dirPath);
+				const fileHandle = await dirHandle.getFileHandle(fileName, {
+					create: true,
+				});
+
+				// Write the content
+				const writable = await fileHandle.createWritable();
+				await writable.write(data.content);
+				await writable.close();
+
+				// Get updated file info
+				const fileInfo = await getFileInfo(fileHandle, fileName, data.path);
+
+				self.postMessage({
+					type: "fileWritten",
+					file: fileInfo,
+					messageId: data.messageId,
+				});
+			} catch (error) {
+				console.error("[Worker] Error writing file:", error);
+				self.postMessage({
+					type: "error",
+					error:
+						error instanceof Error ? error.message : "Failed to write file",
 					messageId: data.messageId,
 				});
 			}

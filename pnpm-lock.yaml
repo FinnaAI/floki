@@ -201,6 +201,9 @@ importers:
       electron-builder:
         specifier: ^26.0.12
         version: 26.0.12(electron-builder-squirrel-windows@26.0.12)
+      monaco-editor:
+        specifier: ^0.52.2
+        version: 0.52.2
       postcss:
         specifier: ^8.5.3
         version: 8.5.3

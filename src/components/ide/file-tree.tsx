@@ -1,5 +1,6 @@
 "use client";
 
+import { AutoFocusInput } from "@/components/ui/auto-focus-input";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -33,39 +34,60 @@ import {
 	useCallback,
 	useEffect,
 	useMemo,
-	useRef,
 	useState,
 } from "react";
 
 // Inline editor for creating/renaming
-const InlineEditor = ({
-	value,
-	onChange,
-	onConfirm,
-	onCancel,
-}: {
-	value: string;
-	onChange: (v: string) => void;
-	onConfirm: () => void;
-	onCancel: () => void;
-}) => {
-	const inputRef = useRef<HTMLInputElement>(null);
-	useEffect(() => {
-		inputRef.current?.focus();
-	}, []);
-	return (
-		<input
-			ref={inputRef}
-			className="w-full rounded-md bg-neutral-800 px-2 py-1 text-sm outline-none"
-			value={value}
-			onChange={(e) => onChange(e.target.value)}
-			onKeyDown={(e) => {
-				if (e.key === "Enter") onConfirm();
-				if (e.key === "Escape") onCancel();
-			}}
-		/>
-	);
-};
+const InlineEditor = memo(
+	({
+		value,
+		onChange,
+		onConfirm,
+		onCancel,
+		className = "",
+	}: {
+		value: string;
+		onChange: (v: string) => void;
+		onConfirm: () => void;
+		onCancel: () => void;
+		className?: string;
+	}) => {
+		const [localValue, setLocalValue] = useState(value);
+
+		// Sync local state with prop when value changes from parent
+		useEffect(() => {
+			setLocalValue(value);
+		}, [value]);
+
+		// Handle input change
+		const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+			const newValue = e.target.value;
+			setLocalValue(newValue);
+			onChange(newValue);
+		};
+
+		return (
+			<AutoFocusInput
+				className={cn("h-7 px-2 py-1 text-sm", className)}
+				value={localValue}
+				onChange={handleChange}
+				onKeyDown={(e) => {
+					if (e.key === "Enter") {
+						e.preventDefault();
+						onConfirm();
+					}
+					if (e.key === "Escape") {
+						e.preventDefault();
+						onCancel();
+					}
+				}}
+				onClick={(e) => e.stopPropagation()}
+				onBlur={onCancel}
+			/>
+		);
+	},
+);
+InlineEditor.displayName = "InlineEditor";
 
 // Update DirectoryNode props interface
 interface DirectoryNodeProps {
@@ -79,12 +101,15 @@ interface DirectoryNodeProps {
 	onFileClick: (file: FileInfo) => void;
 	onToggleSelect: (file: FileInfo) => void;
 	isSelected: (file: FileInfo) => boolean;
-	onCreateFile: (parentDir: string) => void;
-	onCreateFolder: (parentDir: string) => void;
+	onCreateFile: (isDirectory: boolean, parentDir: string) => void;
+	onCreateFolder: (isDirectory: boolean, parentDir: string) => void;
 	setRenameTarget: (p: string | null) => void;
 	setDraftName: (n: string) => void;
 	renameTarget: string | null;
 	draftName: string;
+	draft: { parentDir: string; isDirectory: boolean } | null;
+	commitDraft: () => void;
+	cancelDraft: () => void;
 }
 
 export function FileTree() {
@@ -152,17 +177,15 @@ export function FileTree() {
 		}
 	}, []);
 
-	const handleCreateFile = useCallback((parentDir: string) => {
-		console.log("handleCreateFile called with parentDir:", parentDir);
-		setDraft({ parentDir, isDirectory: false });
-		setDraftName("");
-	}, []);
-
-	const handleCreateFolder = useCallback((parentDir: string) => {
-		console.log("handleCreateFolder called with parentDir:", parentDir);
-		setDraft({ parentDir, isDirectory: true });
-		setDraftName("");
-	}, []);
+	const handleCreateItem = (
+		isDirectory: boolean,
+		parentDir: string = currentPath,
+	) => {
+		const defaultName = isDirectory ? "New Folder" : "new-file.ts";
+		setDraft({ parentDir, isDirectory });
+		setDraftName(defaultName);
+		// The draft item will be rendered immediately with the InlineEditor focused
+	};
 
 	const commitDraft = useCallback(async () => {
 		console.log("Committing draft:", { draft, draftName, renameTarget });
@@ -176,6 +199,8 @@ export function FileTree() {
 			} else {
 				await createFile(draft.parentDir, draftName);
 			}
+			// Force a refresh of the current directory to ensure the new item appears
+			useFileStore.getState().refreshDirectory();
 		} catch (e) {
 			console.error("Error saving draft:", e);
 		}
@@ -213,11 +238,15 @@ export function FileTree() {
 							</Button>
 						</ContextMenuTrigger>
 						<ContextMenuContent>
-							<ContextMenuItem onClick={() => handleCreateFolder(currentPath)}>
+							<ContextMenuItem
+								onClick={() => handleCreateItem(true, currentPath)}
+							>
 								<FolderPlus className="mr-2 h-4 w-4" />
 								New Folder
 							</ContextMenuItem>
-							<ContextMenuItem onClick={() => handleCreateFile(currentPath)}>
+							<ContextMenuItem
+								onClick={() => handleCreateItem(false, currentPath)}
+							>
 								<FilePlus className="mr-2 h-4 w-4" />
 								New File
 							</ContextMenuItem>
@@ -250,8 +279,12 @@ export function FileTree() {
 								onFileClick={handleFileClick}
 								onToggleSelect={toggleFileSelection}
 								isSelected={isFileSelected}
-								onCreateFile={handleCreateFile}
-								onCreateFolder={handleCreateFolder}
+								onCreateFile={(isDirectory, parentDir) =>
+									handleCreateItem(isDirectory, parentDir)
+								}
+								onCreateFolder={(isDirectory, parentDir) =>
+									handleCreateItem(isDirectory, parentDir)
+								}
 								onDeleteFile={deleteFile}
 								draft={draft}
 								renameTarget={renameTarget}
@@ -395,8 +428,8 @@ const FileList = memo(
 		onFileClick: (file: FileInfo) => void;
 		onToggleSelect: (file: FileInfo) => void;
 		isSelected: (file: FileInfo) => boolean;
-		onCreateFile: (parentDir: string) => void;
-		onCreateFolder: (parentDir: string) => void;
+		onCreateFile: (isDirectory: boolean, parentDir: string) => void;
+		onCreateFolder: (isDirectory: boolean, parentDir: string) => void;
 		onDeleteFile: (filePath: string) => void;
 		draft: { parentDir: string; isDirectory: boolean } | null;
 		renameTarget: string | null;
@@ -452,8 +485,34 @@ const FileList = memo(
 				{/* Root level create buttons */}
 				<ContextMenu>
 					<ContextMenuTrigger className="block h-8 w-full">
-						<div className="hover:!bg-neutral-700/50 rounded-md px-2 py-1.5">
+						<div className="hover:!bg-neutral-700/50 flex items-center justify-between rounded-md px-2 py-1.5">
 							<span className="text-neutral-400 text-sm">Project Root</span>
+							<Button
+								variant="ghost"
+								size="icon"
+								className="h-5 w-5"
+								onClick={(e) => {
+									e.stopPropagation();
+									useFileStore.getState().refreshDirectory();
+								}}
+								title="Refresh file tree"
+							>
+								<svg
+									xmlns="http://www.w3.org/2000/svg"
+									viewBox="0 0 24 24"
+									fill="none"
+									stroke="currentColor"
+									strokeWidth="2"
+									strokeLinecap="round"
+									strokeLinejoin="round"
+									className="h-3.5 w-3.5"
+								>
+									<path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8" />
+									<path d="M21 3v5h-5" />
+									<path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16" />
+									<path d="M8 16H3v5" />
+								</svg>
+							</Button>
 						</div>
 					</ContextMenuTrigger>
 					<ContextMenuContent>
@@ -463,7 +522,7 @@ const FileList = memo(
 									"Root context menu - creating folder in:",
 									currentPath,
 								);
-								onCreateFolder(currentPath);
+								onCreateFolder(true, currentPath);
 							}}
 						>
 							<FolderPlus className="mr-2 h-4 w-4" />
@@ -475,7 +534,7 @@ const FileList = memo(
 									"Root context menu - creating file in:",
 									currentPath,
 								);
-								onCreateFile(currentPath);
+								onCreateFile(false, currentPath);
 							}}
 						>
 							<FilePlus className="mr-2 h-4 w-4" />
@@ -484,18 +543,21 @@ const FileList = memo(
 					</ContextMenuContent>
 				</ContextMenu>
 
+				{/* Show draft item at the current level */}
 				{showDraft && (
 					<div className="flex items-center gap-1 rounded-md bg-neutral-700/20 px-2 py-1.5">
 						{draft.isDirectory ? (
 							<Folder className="h-4 w-4 text-amber-500" />
 						) : (
-							getFileIcon(draftName || "file.txt")
+							getFileIcon(draftName)
 						)}
 						<InlineEditor
+							key={`draft-${currentPath}`}
 							value={draftName}
 							onChange={setDraftName}
 							onConfirm={commitDraft}
 							onCancel={cancelDraft}
+							className="flex-1"
 						/>
 					</div>
 				)}
@@ -520,6 +582,9 @@ const FileList = memo(
 						setDraftName={setDraftName}
 						renameTarget={renameTarget}
 						draftName={draftName}
+						draft={draft}
+						commitDraft={commitDraft}
+						cancelDraft={cancelDraft}
 					/>
 				))}
 				{/* Files */}
@@ -565,9 +630,15 @@ const DirectoryNode = memo(
 		setDraftName,
 		renameTarget,
 		draftName,
+		draft,
+		commitDraft,
+		cancelDraft,
 	}: DirectoryNodeProps) => {
 		const [loading, setLoading] = useState(false);
 		const [isExpanded, setIsExpanded] = useState(false);
+
+		// Check if draft is targeting this directory
+		const showDraft = draft && draft.parentDir === directory.path;
 
 		const handleToggle = useCallback(
 			async (e?: SyntheticEvent) => {
@@ -585,6 +656,13 @@ const DirectoryNode = memo(
 			},
 			[directory.path, isExpanded],
 		);
+
+		// Auto-expand the directory if a draft is being created inside it
+		useEffect(() => {
+			if (showDraft && !isExpanded) {
+				handleToggle();
+			}
+		}, [showDraft, isExpanded, handleToggle]);
 
 		// Get direct child dirs and files
 		const { childDirs, childFiles } = useMemo(() => {
@@ -689,8 +767,47 @@ const DirectoryNode = memo(
 								<span className="font-medium text-sm">{directory.name}</span>
 							)}
 						</button>
+
+						{/* Show draft item specifically for this directory when it's the target and not yet expanded */}
+						{showDraft && !isExpanded && (
+							<div className="mt-0.5 ml-4 flex items-center gap-1 rounded-md bg-neutral-700/20 px-2 py-1.5">
+								{draft.isDirectory ? (
+									<Folder className="h-4 w-4 text-amber-500" />
+								) : (
+									getFileIcon(draftName)
+								)}
+								<InlineEditor
+									key={`draft-${directory.path}`}
+									value={draftName}
+									onChange={setDraftName}
+									onConfirm={commitDraft}
+									onCancel={cancelDraft}
+									className="flex-1"
+								/>
+							</div>
+						)}
+
 						{isExpanded && (
 							<div className="mt-0.5 ml-4 w-full space-y-0.5">
+								{/* Show draft item inside expanded directory */}
+								{showDraft && (
+									<div className="flex items-center gap-1 rounded-md bg-neutral-700/20 px-2 py-1.5">
+										{draft.isDirectory ? (
+											<Folder className="h-4 w-4 text-amber-500" />
+										) : (
+											getFileIcon(draftName)
+										)}
+										<InlineEditor
+											key={`draft-${directory.path}`}
+											value={draftName}
+											onChange={setDraftName}
+											onConfirm={commitDraft}
+											onCancel={cancelDraft}
+											className="flex-1"
+										/>
+									</div>
+								)}
+
 								{childDirs.map((dir) => (
 									<DirectoryNode
 										key={dir.path}
@@ -710,6 +827,9 @@ const DirectoryNode = memo(
 										setDraftName={setDraftName}
 										renameTarget={renameTarget}
 										draftName={draftName}
+										draft={draft}
+										commitDraft={commitDraft}
+										cancelDraft={cancelDraft}
 									/>
 								))}
 								{childFiles.map((file) => (
@@ -739,7 +859,7 @@ const DirectoryNode = memo(
 					<ContextMenuItem
 						onClick={() => {
 							console.log("Creating folder in directory:", directory.path);
-							onCreateFolder(directory.path);
+							onCreateFolder(true, directory.path);
 						}}
 					>
 						<FolderPlus className="mr-2 h-4 w-4" />
@@ -748,7 +868,7 @@ const DirectoryNode = memo(
 					<ContextMenuItem
 						onClick={() => {
 							console.log("Creating file in directory:", directory.path);
-							onCreateFile(directory.path);
+							onCreateFile(false, directory.path);
 						}}
 					>
 						<FilePlus className="mr-2 h-4 w-4" />
