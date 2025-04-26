@@ -1,6 +1,7 @@
 "use client";
 
 import { FileViewer } from "@/components/file-monaco-editor";
+import { TiptapViewer } from "@/components/tiptap-editor";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { createFileSystem } from "@/lib/file-system";
 import { useFileStore } from "@/store/file-store";
@@ -101,12 +102,23 @@ const PreviewView = React.memo<ViewComponentProps>(
 		if (!selectedFile || !fileContent)
 			return <div className="p-4">No file selected</div>;
 
+		const ext = selectedFile.name.split(".").pop()?.toLowerCase() || "";
+
 		return (
-			<div className="p-4">
-				<h2 className="mb-2 font-semibold text-lg">Preview</h2>
-				<div className="border p-4">
-					{/* Render HTML/Markdown preview here in the future */}
-					<p>Preview of {selectedFile.name} will be displayed here</p>
+			<div className="h-full p-4">
+				<div className="h-[calc(100%-40px)] overflow-auto rounded-md border p-4">
+					{ext === "md" || ext === "markdown" ? (
+						<TiptapViewer content={fileContent} className="max-w-none" />
+					) : ext === "html" ? (
+						<iframe
+							srcDoc={fileContent}
+							title={selectedFile.name}
+							className="h-full w-full border-none"
+							sandbox="allow-scripts"
+						/>
+					) : (
+						<p>Preview not available for {selectedFile.name}</p>
+					)}
 				</div>
 			</div>
 		);

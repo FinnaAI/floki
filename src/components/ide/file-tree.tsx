@@ -264,7 +264,7 @@ const FileList = memo(
 		}, [files, currentPath, isIgnored, showIgnoredFiles]);
 
 		return (
-			<div className="animate-[fadeIn_0.2s_ease-out] justify-start space-y-0.5">
+			<div className="animate-[fadeIn_0.1s_ease-out] justify-start space-y-0.5">
 				{/* Directories */}
 				{rootDirs.map((dir) => (
 					<DirectoryNode
@@ -493,7 +493,9 @@ const FileNode = memo(
 				size="sm"
 				className={cn(
 					"group flex w-full items-center gap-1 rounded-md px-2 py-1.5",
-					isSelected ? "bg-neutral-700/50" : "hover:!bg-neutral-700/50",
+					isSelected
+						? "hover:!bg-neutral-700/50 bg-neutral-700/60"
+						: "hover:!bg-neutral-700/50",
 					isIgnored ? "opacity-50" : "",
 					fileStatus
 						? `border-l-1 border-${statusColor.replace("bg-", "")}`

@@ -1,5 +1,20 @@
 import { Badge } from "@/components/ui/badge";
+import {
+	Breadcrumb,
+	BreadcrumbItem,
+	BreadcrumbLink,
+	BreadcrumbList,
+	BreadcrumbPage,
+	BreadcrumbSeparator,
+} from "@/components/ui/breadcrumb";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import {
+	Select,
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+} from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { useGitStatusStore } from "@/store/git-status-store";
 import { useIDEStore } from "@/store/ide-store";
@@ -9,6 +24,7 @@ import { FileText } from "lucide-react";
 import dynamic from "next/dynamic";
 import Image from "next/image";
 import { useEffect, useMemo, useRef, useState } from "react";
+import React from "react";
 import { createHighlighter } from "shiki";
 
 // Add this interface to declare the global window property
@@ -456,24 +472,66 @@ const FileMonacoEditor = ({
 		);
 	}, [showDiff, fileStatus, isImageFile, selectedFile]);
 
+	// Parse file path for breadcrumb
+	const getPathParts = useMemo(() => {
+		if (!selectedFile?.path) return [];
+
+		// Remove currentPath prefix if present
+		let displayPath = selectedFile.path;
+		if (currentPath && displayPath.startsWith(currentPath)) {
+			displayPath = displayPath.slice(currentPath.length);
+			// Remove leading slash if present
+			if (displayPath.startsWith("/")) {
+				displayPath = displayPath.slice(1);
+			}
+		}
+
+		return displayPath.split("/").filter(Boolean);
+	}, [selectedFile?.path, currentPath]);
+
 	return (
 		<div className="flex h-full flex-col overflow-hidden">
 			<div className="flex h-9 items-center justify-between border-b px-1">
 				<div className="flex items-center px-4 text-sm">
 					{selectedFile ? (
-						<span className="truncate font-medium text-xs">
-							{selectedFile.path.replace(`${currentPath}/`, "")}
-
+						<>
 							{/* Edit toggle button */}
 							{selectedFile && !isImageFile && !shouldShowDiff && (
 								<button
 									type="button"
 									onClick={toggleEditMode}
-									className="ml-2 rounded-md px-2 py-1 text-muted-foreground text-xs"
+									className="mr-2 rounded-md px-2 py-1 text-muted-foreground text-xs"
 								>
 									{isEditing ? "Save" : "Edit"}
 								</button>
 							)}
+
+							{/* File path breadcrumb */}
+							<Breadcrumb className="flex-1 overflow-hidden">
+								<BreadcrumbList className="flex-wrap">
+									{getPathParts.map((part, index) => {
+										const isLast = index === getPathParts.length - 1;
+										// Create a compound key using the part and its path up to this point
+										const keyPath = getPathParts.slice(0, index + 1).join("/");
+										return (
+											<React.Fragment key={keyPath}>
+												{index > 0 && <BreadcrumbSeparator />}
+												<BreadcrumbItem>
+													{isLast ? (
+														<BreadcrumbPage className="truncate font-medium">
+															{part}
+														</BreadcrumbPage>
+													) : (
+														<BreadcrumbLink className="truncate">
+															{part}
+														</BreadcrumbLink>
+													)}
+												</BreadcrumbItem>
+											</React.Fragment>
+										);
+									})}
+								</BreadcrumbList>
+							</Breadcrumb>
 
 							{/* Diff view toggle button */}
 							{fileStatus === "modified" && !isImageFile && (
@@ -485,7 +543,7 @@ const FileMonacoEditor = ({
 									{shouldShowDiff ? "Hide Diff" : "Show Diff"}
 								</button>
 							)}
-						</span>
+						</>
 					) : (
 						<span className="">No file selected</span>
 					)}
@@ -493,17 +551,21 @@ const FileMonacoEditor = ({
 
 				<div className="flex items-center gap-2">
 					{/* Theme selector */}
-					<select
+					<Select
 						value={editorTheme}
-						onChange={(e) => void changeTheme(e.target.value)}
-						className="rounded-md px-2 py-1 text-xs"
+						onValueChange={(value) => void changeTheme(value)}
 					>
-						{availableThemes.map((theme) => (
-							<option key={theme} value={theme}>
-								{theme}
-							</option>
-						))}
-					</select>
+						<SelectTrigger className="h-7 text-xs">
+							<SelectValue placeholder="Select theme" />
+						</SelectTrigger>
+						<SelectContent>
+							{availableThemes.map((theme) => (
+								<SelectItem key={theme} value={theme}>
+									{theme}
+								</SelectItem>
+							))}
+						</SelectContent>
+					</Select>
 
 					{/* Git Status Badge */}
 					{selectedFile && fileStatus && (
