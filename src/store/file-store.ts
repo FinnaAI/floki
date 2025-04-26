@@ -1,10 +1,18 @@
 import path from "path";
+import type {
+	FileInfo,
+	FileSystem,
+	WebFileSystem,
+} from "@/interfaces/FileSystem/FileSystem";
 import { createFileSystem } from "@/lib/file-system";
 import { useFileTreeStore } from "@/store/file-tree-store";
 import { useIDEStore } from "@/store/ide-store";
-import type { FileDiff, FileInfo } from "@/types/files";
+import type { FileDiff } from "@/types/files";
 import { create } from "zustand";
 import { useGitStatusStore } from "./git-status-store";
+
+// Create file system instance
+const fileSystem = createFileSystem() as FileSystem;
 
 interface FileState {
 	// State
@@ -23,6 +31,7 @@ interface FileState {
 	pathForward: string[];
 	selectedFiles: Record<string, FileInfo>;
 	hasInitialized: boolean;
+	needsDirectoryPermission: boolean;
 
 	// Map of project path to directory handle
 	projectHandles: Record<string, FileSystemDirectoryHandle | undefined>;
@@ -55,6 +64,7 @@ interface FileState {
 	setPathHistory: (history: string[]) => void;
 	setPathForward: (forward: string[]) => void;
 	setInitialized: (initialized: boolean) => void;
+	setNeedsDirectoryPermission: (needs: boolean) => void;
 	loadDirectory: (dirPath: string, addToHistory?: boolean) => Promise<void>;
 	loadFileContent: (fileInfo: FileInfo) => Promise<void>;
 	loadFileDiff: (filePath: string) => Promise<void>;
@@ -75,10 +85,15 @@ interface FileState {
 	switchProject: (projectPath: string) => Promise<void>;
 
 	loadDirectoryChildren: (dirPath: string) => Promise<void>;
+
+	// Initialize project on startup
+	initializeProject: () => Promise<void>;
 }
 
-// Create file system instance
-const fileSystem = createFileSystem();
+// Type guard for WebFileSystem
+function isWebFileSystem(fs: FileSystem): fs is WebFileSystem {
+	return "folderHandle" in fs;
+}
 
 export const useFileStore = create<FileState>((set, get) => ({
 	// Initial state
@@ -97,6 +112,7 @@ export const useFileStore = create<FileState>((set, get) => ({
 	pathForward: [],
 	selectedFiles: {},
 	hasInitialized: false,
+	needsDirectoryPermission: false,
 	projectHandles: {},
 	projectStates: {},
 
@@ -133,6 +149,8 @@ export const useFileStore = create<FileState>((set, get) => ({
 	setPathForward: (forward: string[]) => set({ pathForward: forward }),
 	setInitialized: (initialized: boolean) =>
 		set({ hasInitialized: initialized }),
+	setNeedsDirectoryPermission: (needs: boolean) =>
+		set({ needsDirectoryPermission: needs }),
 
 	// Action to load a directory
 	loadDirectory: async (dirPath: string, addToHistory = true) => {
@@ -140,34 +158,12 @@ export const useFileStore = create<FileState>((set, get) => ({
 		const { currentPath, files, directoryLoading } = state;
 		const gitStore = useGitStatusStore.getState();
 
-		// Make sure we're using the correct folder handle before any file operation
-		const syncHandle = () => {
-			const activeProject = useIDEStore.getState().activeProject;
-			if (!activeProject) return;
-
-			const handle = get().projectHandles[activeProject];
-			if (!handle) {
-				console.error(`Handle not found for active project: ${activeProject}`);
+		// Check if we have access to files
+		if (isWebFileSystem(fileSystem)) {
+			if (!fileSystem.folderHandle) {
+				set({ error: "No folder selected" });
 				return;
 			}
-
-			// Update file system handle
-			console.log(
-				`Syncing file system handle to match active project: ${activeProject}`,
-			);
-			(
-				fileSystem as unknown as { folderHandle?: FileSystemDirectoryHandle }
-			).folderHandle = handle;
-		};
-
-		syncHandle();
-
-		console.log("loadDirectory called with path:", dirPath);
-
-		// Check if we have access to files
-		if (!fileSystem.folderHandle && fileSystem.openFolder) {
-			set({ error: "No folder selected" });
-			return;
 		}
 
 		// Don't skip reload if we're initializing with empty path
@@ -205,7 +201,23 @@ export const useFileStore = create<FileState>((set, get) => ({
 			});
 
 			// Update git status
-			gitStore.setCurrentPath(dirPath);
+			if (dirPath) {
+				// Create absolute path using the folderHandle path or currentPath
+				const absolutePath = isWebFileSystem(fileSystem)
+					? fileSystem.folderHandle?.name || dirPath
+					: dirPath;
+				console.log("Setting Git absolute path:", absolutePath);
+				gitStore.setCurrentPath(absolutePath);
+			} else {
+				// If at project root, use the folderHandle name or currentPath as the absolute path
+				const absolutePath = isWebFileSystem(fileSystem)
+					? fileSystem.folderHandle?.name || ""
+					: dirPath;
+				if (absolutePath) {
+					console.log("Setting Git status to project root:", absolutePath);
+					gitStore.setCurrentPath(absolutePath);
+				}
+			}
 			await gitStore.fetchGitStatus();
 
 			// Update navigation history if needed
@@ -297,20 +309,44 @@ export const useFileStore = create<FileState>((set, get) => ({
 
 	// Action to load git diff for a file
 	loadFileDiff: async (filePath: string) => {
+		const gitStore = useGitStatusStore.getState();
+		const fileStatus = gitStore.getFileStatus(filePath);
+
+		// Only load diff for modified files
+		if (fileStatus !== "modified") {
+			set({ fileDiff: null });
+			return;
+		}
+
+		set({ fileLoading: true });
+
 		try {
-			const response = await fetch("/api/git/diff", {
-				method: "POST",
-				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify({ filePath }),
+			const response = await fetch(
+				`/api/git/diff?path=${encodeURIComponent(filePath)}`,
+			);
+
+			if (!response.ok) {
+				const errorText = await response.text();
+				throw new Error(`Failed to load diff: ${response.status} ${errorText}`);
+			}
+
+			const diffData = await response.json();
+			set({
+				fileDiff: {
+					oldContent: diffData.oldContent,
+					newContent: diffData.newContent,
+					hunks: diffData.hunks,
+				},
+				fileLoading: false,
 			});
-
-			if (!response.ok) throw new Error(`HTTP error ${response.status}`);
-
-			const data = await response.json();
-			set({ fileDiff: data });
-		} catch (err) {
-			console.error("Error loading diff:", err);
-			// Don't set error state here, not critical
+		} catch (error) {
+			console.error("Error loading file diff:", error);
+			set({
+				error:
+					error instanceof Error ? error.message : "Failed to load file diff",
+				fileLoading: false,
+				fileDiff: null,
+			});
 		}
 	},
 
@@ -379,7 +415,7 @@ export const useFileStore = create<FileState>((set, get) => ({
 	goToProjectRoot: () => {
 		const state = get();
 		// Only try to load directory if we have a folder handle (in browser) or if we're in server mode
-		if (fileSystem.folderHandle || !fileSystem.openFolder) {
+		if (isWebFileSystem(fileSystem) ? fileSystem.folderHandle : true) {
 			state.loadDirectory("");
 		}
 	},
@@ -457,12 +493,15 @@ export const useFileStore = create<FileState>((set, get) => ({
 	},
 
 	// Add new method to handle folder opening
-	openFolder: async () => {
+	openFolder: async (): Promise<FileSystemDirectoryHandle | undefined> => {
 		try {
-			const handle = await fileSystem.openFolder?.();
-			if (handle) {
-				await get().loadDirectory("", true);
-				return handle;
+			if (isWebFileSystem(fileSystem)) {
+				const handle = await fileSystem.openFolder();
+				if (handle) {
+					set({ needsDirectoryPermission: false });
+					await get().loadDirectory("", true);
+					return handle;
+				}
 			}
 			return undefined;
 		} catch (err) {
@@ -479,20 +518,17 @@ export const useFileStore = create<FileState>((set, get) => ({
 	// Add new method to handle project opening
 	openNewProject: async () => {
 		try {
-			const handle = await fileSystem.openFolder?.();
-			if (handle) {
-				const projectPath = handle.name;
-				// Store handle mapping (in-memory, not persisted)
-				set((state) => ({
-					projectHandles: { ...state.projectHandles, [projectPath]: handle },
-				}));
-				useIDEStore.getState().addProject(projectPath);
-				// Update file system handle
-				(
-					fileSystem as unknown as { folderHandle?: FileSystemDirectoryHandle }
-				).folderHandle = handle;
-				await get().loadDirectory("", true);
-				return handle;
+			if (isWebFileSystem(fileSystem)) {
+				const handle = await fileSystem.openFolder();
+				if (handle) {
+					const projectPath = handle.name;
+					// Store handle mapping (in-memory, not persisted)
+					set((state) => ({
+						projectHandles: { ...state.projectHandles, [projectPath]: handle },
+					}));
+					useIDEStore.getState().addProject(projectPath);
+					return handle;
+				}
 			}
 			return undefined;
 		} catch (err) {
@@ -617,6 +653,46 @@ export const useFileStore = create<FileState>((set, get) => ({
 			console.error("Error loading directory children:", err);
 			set({
 				error: err instanceof Error ? err.message : "Failed to load directory",
+			});
+		}
+	},
+
+	// Initialize project on startup
+	initializeProject: async () => {
+		const ideStore = useIDEStore.getState();
+		const activeProject = ideStore.activeProject;
+
+		if (!activeProject) {
+			console.log("No active project to initialize");
+			set({ loading: false, directoryLoading: false });
+			return;
+		}
+
+		// For web, handle directory permission
+		try {
+			// If we already have a handle for this project, use it
+			const existingHandle = get().projectHandles[activeProject];
+			if (existingHandle) {
+				(
+					fileSystem as unknown as { folderHandle?: FileSystemDirectoryHandle }
+				).folderHandle = existingHandle;
+				await get().loadDirectory("", true);
+				return;
+			}
+
+			// Otherwise, mark that we need permission
+			set({
+				needsDirectoryPermission: true,
+				loading: false,
+				directoryLoading: false,
+			});
+		} catch (err) {
+			console.error("Error initializing project:", err);
+			set({
+				error:
+					err instanceof Error ? err.message : "Failed to initialize project",
+				loading: false,
+				directoryLoading: false,
 			});
 		}
 	},

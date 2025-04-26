@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
+import { useFileStore } from "./file-store";
 
 export interface Project {
 	path: string;
@@ -84,10 +85,18 @@ export const useIDEStore = create<IDEState>()(
 						state.activeProject === projectPath ? null : state.activeProject,
 				})),
 
-			setActiveProject: (projectPath: string) =>
+			setActiveProject: (projectPath: string) => {
 				set(() => ({
 					activeProject: projectPath,
-				})),
+				}));
+
+				// Initialize project when set
+				if (typeof window !== "undefined") {
+					setTimeout(() => {
+						useFileStore.getState().initializeProject();
+					}, 0);
+				}
+			},
 
 			getProjectByPath: (projectPath: string) => {
 				return get().projects.find((p) => p.path === projectPath);
@@ -95,6 +104,16 @@ export const useIDEStore = create<IDEState>()(
 		}),
 		{
 			name: "ide-store",
+			onRehydrateStorage: () => {
+				return (state) => {
+					if (state?.activeProject && typeof window !== "undefined") {
+						// Initialize project after rehydration
+						setTimeout(() => {
+							useFileStore.getState().initializeProject();
+						}, 0);
+					}
+				};
+			},
 		},
 	),
 );

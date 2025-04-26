@@ -50,6 +50,7 @@ export function FileTree() {
 		isFileSelected,
 		openFolder,
 		loadDirectory,
+		needsDirectoryPermission,
 	} = useFileStore();
 
 	// Use IDE store for project state
@@ -96,7 +97,9 @@ export function FileTree() {
 	return (
 		<ScrollArea className="h-full">
 			<div className="p-2">
-				{directoryLoading && !filteredFiles.length ? (
+				{needsDirectoryPermission ? (
+					<PermissionRequest onOpenFolder={openFolder} />
+				) : directoryLoading && !filteredFiles.length ? (
 					<LoadingState />
 				) : error ? (
 					<ErrorState error={error} onOpenFolder={openFolder} />
@@ -130,6 +133,24 @@ const LoadingState = memo(() => (
 	</div>
 ));
 LoadingState.displayName = "LoadingState";
+
+// Add PermissionRequest component
+const PermissionRequest = memo(
+	({ onOpenFolder }: { onOpenFolder: () => void }) => (
+		<div className="flex h-24 flex-col items-center justify-center gap-2 p-4 text-center">
+			<p className="text-sm">Directory access needed to show files</p>
+			<Button
+				onClick={onOpenFolder}
+				className="mt-2"
+				variant="outline"
+				size="sm"
+			>
+				Grant Access
+			</Button>
+		</div>
+	),
+);
+PermissionRequest.displayName = "PermissionRequest";
 
 // Memoized error state component
 const ErrorState = memo(
@@ -228,6 +249,9 @@ const FileList = memo(
 				// skip parent directory placeholder ".."
 				if (file.name === "..") continue;
 
+				// Skip ignored files unless showIgnoredFiles is true
+				if (!showIgnoredFiles && isIgnored(file.path)) continue;
+
 				const parent = getParentPath(file.path);
 				const isTopLevel = parent === currentPath || parent === "";
 
@@ -245,7 +269,7 @@ const FileList = memo(
 			rootFiles.sort((a, b) => a.name.localeCompare(b.name));
 
 			return { rootDirs, rootFiles };
-		}, [files, currentPath]);
+		}, [files, currentPath, isIgnored, showIgnoredFiles]);
 
 		return (
 			<div className="animate-[fadeIn_0.2s_ease-out] justify-start space-y-0.5">
@@ -341,6 +365,9 @@ const DirectoryNode = memo(
 				if (file.path === directory.path) continue;
 				if (!file.path.startsWith(basePathWithSlash)) continue;
 
+				// Skip ignored files unless showIgnoredFiles is true
+				if (!showIgnoredFiles && isIgnored(file.path)) continue;
+
 				const relative = file.path.substring(basePathWithSlash.length);
 				if (relative.includes("/")) {
 					// deeper level
@@ -371,7 +398,7 @@ const DirectoryNode = memo(
 			childFiles.sort((a, b) => a.name.localeCompare(b.name));
 
 			return { childDirs, childFiles };
-		}, [allFiles, directory.path]);
+		}, [allFiles, directory.path, isIgnored, showIgnoredFiles]);
 
 		return (
 			<div style={{ paddingLeft: level > 0 ? `${level * 16}px` : "0" }}>
@@ -401,7 +428,7 @@ const DirectoryNode = memo(
 					</div>
 					<div className="h-auto p-0">
 						{loading ? (
-							<div className="h-4 w-4 animate-spin rounded-full border-blue-500 border-b-2" />
+							<div className="h-4 w-4 animate-spin rounded-full border-border border-b-2" />
 						) : isExpanded ? (
 							<FolderOpen className="h-4 w-4 text-amber-500" />
 						) : (
@@ -468,6 +495,11 @@ const FileNode = memo(
 		onToggleSelect: () => void;
 		isChecked: boolean;
 	}) => {
+		// Debug log to see what status we're getting
+		if (fileStatus) {
+			console.log(`File ${file.name} has status: ${fileStatus}`);
+		}
+
 		const statusColor =
 			fileStatus === "modified"
 				? "bg-amber-500"
@@ -482,11 +514,14 @@ const FileNode = memo(
 				variant="ghost"
 				size="sm"
 				className={cn(
-					"group flex w-full items-center gap-1 rounded-md px-2 py-1.5 hover:bg-gray-100 dark:hover:bg-gray-800/50",
+					"group flex w-full items-center gap-1 rounded-md px-2 py-1.5 hover:bg-red-800/50",
 					isSelected
 						? "bg-neutral-600"
 						: "hover:bg-gray-100 dark:hover:bg-gray-800/50",
 					isIgnored ? "opacity-50" : "",
+					fileStatus
+						? `border-l-2 border-${statusColor.replace("bg-", "")}`
+						: "",
 				)}
 				onClick={onSelect}
 				onKeyDown={(e) => {
@@ -504,14 +539,24 @@ const FileNode = memo(
 				<div className="h-auto p-0">{getFileIcon(file.name)}</div>
 				<span className="flex-1 truncate pl-1 text-left text-sm">
 					{file.name}
+					{fileStatus && (
+						<span
+							className={`ml-1 text-xs ${
+								fileStatus === "modified"
+									? "text-amber-500"
+									: fileStatus === "added" || fileStatus === "untracked"
+										? "text-green-500"
+										: fileStatus === "deleted"
+											? "text-red-500"
+											: ""
+							}`}
+						>
+							({fileStatus})
+						</span>
+					)}
 				</span>
 				{fileStatus && (
-					<div
-						className={cn(
-							"h-2 w-2 rounded-full opacity-0 transition-opacity group-hover:opacity-100",
-							statusColor,
-						)}
-					/>
+					<div className={cn("h-2.5 w-2.5 rounded-full", statusColor)} />
 				)}
 			</Button>
 		);

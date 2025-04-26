@@ -363,14 +363,9 @@ export async function POST(request: Request) {
 		}
 
 		// Expand tilde in path if present
-		let expandedPath = filePath.startsWith("~")
+		const expandedPath = filePath.startsWith("~")
 			? expandTilde(filePath)
 			: filePath;
-
-		// remove any leading "project-name/" so we're always relative
-		if (expandedPath.startsWith(`${folderHandle.name}/`)) {
-			expandedPath = expandedPath.slice(folderHandle.name.length + 1);
-		}
 
 		try {
 			const stats = await stat(expandedPath);
