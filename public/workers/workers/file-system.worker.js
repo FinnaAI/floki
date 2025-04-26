@@ -220,6 +220,157 @@ self.onmessage = async ({ data }) => {
             };
             break;
         }
+        case "createFile": {
+            if (!folderHandle || !data.messageId || !data.path || !data.fileName) {
+                console.error("[Worker] Cannot create file - missing parameters");
+                self.postMessage({
+                    type: "error",
+                    error: "Missing parameters for file creation",
+                    messageId: data.messageId,
+                });
+                break;
+            }
+            try {
+                console.log("[Worker] Creating file:", data.fileName, "in", data.path);
+                const dirHandle = await getDirHandleFromPath(data.path);
+                // Create the file with empty content
+                const fileHandle = await dirHandle.getFileHandle(data.fileName, {
+                    create: true,
+                });
+                const writable = await fileHandle.createWritable();
+                await writable.write(new Blob([""]));
+                await writable.close();
+                // Get file info to return
+                const filePath = `${data.path}/${data.fileName}`;
+                const file = await fileHandle.getFile();
+                const fileInfo = {
+                    name: data.fileName,
+                    path: filePath,
+                    isDirectory: false,
+                    size: 0,
+                    lastModified: new Date(file.lastModified),
+                };
+                self.postMessage({
+                    type: "fileCreated",
+                    file: fileInfo,
+                    messageId: data.messageId,
+                });
+            }
+            catch (error) {
+                console.error("[Worker] Error creating file:", error);
+                self.postMessage({
+                    type: "error",
+                    error: error instanceof Error ? error.message : "Failed to create file",
+                    messageId: data.messageId,
+                });
+            }
+            break;
+        }
+        case "createFolder": {
+            if (!folderHandle || !data.messageId || !data.path || !data.fileName) {
+                console.error("[Worker] Cannot create folder - missing parameters");
+                self.postMessage({
+                    type: "error",
+                    error: "Missing parameters for folder creation",
+                    messageId: data.messageId,
+                });
+                break;
+            }
+            try {
+                console.log("[Worker] Creating folder:", data.fileName, "in", data.path);
+                const dirHandle = await getDirHandleFromPath(data.path);
+                // Create the directory
+                const newDirHandle = await dirHandle.getDirectoryHandle(data.fileName, {
+                    create: true,
+                });
+                // Get directory info to return
+                const dirPath = `${data.path}/${data.fileName}`;
+                const dirInfo = {
+                    name: data.fileName,
+                    path: dirPath,
+                    isDirectory: true,
+                    size: 0,
+                    lastModified: new Date(),
+                };
+                self.postMessage({
+                    type: "folderCreated",
+                    folder: dirInfo,
+                    messageId: data.messageId,
+                });
+            }
+            catch (error) {
+                console.error("[Worker] Error creating folder:", error);
+                self.postMessage({
+                    type: "error",
+                    error: error instanceof Error ? error.message : "Failed to create folder",
+                    messageId: data.messageId,
+                });
+            }
+            break;
+        }
+        case "deleteFile": {
+            if (!folderHandle || !data.messageId || !data.path) {
+                console.error("[Worker] Cannot delete file - missing parameters");
+                self.postMessage({
+                    type: "error",
+                    error: "Missing parameters for file deletion",
+                    messageId: data.messageId,
+                });
+                break;
+            }
+            try {
+                console.log("[Worker] Deleting file:", data.path);
+                // Get parent directory and filename
+                const pathParts = data.path.split("/");
+                const fileName = pathParts.pop() || "";
+                const parentPath = pathParts.join("/");
+                const parentDir = await getDirHandleFromPath(parentPath);
+                // Try to remove as file first
+                try {
+                    await parentDir.removeEntry(fileName);
+                    self.postMessage({
+                        type: "fileDeleted",
+                        path: data.path,
+                        messageId: data.messageId,
+                    });
+                }
+                catch (error) {
+                    // Could be a directory, or might have failed for other reasons
+                    if (error instanceof DOMException &&
+                        error.name === "TypeMismatchError") {
+                        // It's likely a directory, try to remove it
+                        try {
+                            await parentDir.removeEntry(fileName, { recursive: true });
+                            self.postMessage({
+                                type: "fileDeleted",
+                                path: data.path,
+                                messageId: data.messageId,
+                            });
+                        }
+                        catch (dirError) {
+                            // Directory removal failed
+                            console.error("[Worker] Error removing directory:", dirError);
+                            throw dirError;
+                        }
+                    }
+                    else {
+                        // Other error
+                        throw error;
+                    }
+                }
+            }
+            catch (error) {
+                console.error("[Worker] Error deleting file/folder:", error);
+                self.postMessage({
+                    type: "error",
+                    error: error instanceof Error
+                        ? error.message
+                        : "Failed to delete file/folder",
+                    messageId: data.messageId,
+                });
+            }
+            break;
+        }
     }
 };
 export {};

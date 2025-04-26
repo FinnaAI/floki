@@ -9,6 +9,9 @@ const readdir = util.promisify(fs.readdir);
 const stat = util.promisify(fs.stat);
 const readFile = util.promisify(fs.readFile);
 const writeFile = util.promisify(fs.writeFile);
+const mkdir = util.promisify(fs.mkdir);
+const unlink = util.promisify(fs.unlink);
+const rmdir = util.promisify(fs.rmdir);
 
 // Function to expand tilde in paths
 function expandTilde(filePath: string): string {
@@ -498,6 +501,195 @@ export async function PUT(request: Request) {
 		}
 	} catch (error) {
 		console.error("Invalid PUT request:", error);
+		return NextResponse.json({ error: "Invalid request" }, { status: 400 });
+	}
+}
+
+// DELETE endpoint to delete file or directory
+export async function DELETE(request: Request) {
+	try {
+		const { searchParams } = new URL(request.url);
+		const filePath = searchParams.get("path");
+
+		if (!filePath) {
+			return NextResponse.json(
+				{ error: "File path is required" },
+				{ status: 400 },
+			);
+		}
+
+		// Expand tilde in path if present
+		const expandedPath = filePath.startsWith("~")
+			? expandTilde(filePath)
+			: filePath;
+
+		// Security check - ensure the path is within allowed boundaries
+		const projectRoot = process.cwd();
+		const normalizedPath = path.normalize(expandedPath);
+
+		if (
+			!normalizedPath.startsWith(BASE_PATH) &&
+			!normalizedPath.startsWith(projectRoot)
+		) {
+			return NextResponse.json(
+				{ error: "Access denied: path outside allowed directory" },
+				{ status: 403 },
+			);
+		}
+
+		// Don't allow deleting system directories
+		const systemDirs = [
+			"/bin",
+			"/boot",
+			"/dev",
+			"/etc",
+			"/lib",
+			"/proc",
+			"/sbin",
+			"/sys",
+			"/var",
+			"C:\\Windows",
+			"C:\\Program Files",
+			"C:\\Program Files (x86)",
+		];
+
+		if (systemDirs.some((dir) => normalizedPath.startsWith(dir))) {
+			return NextResponse.json(
+				{ error: "Access denied: system directories are restricted" },
+				{ status: 403 },
+			);
+		}
+
+		try {
+			const stats = await stat(normalizedPath);
+
+			if (stats.isDirectory()) {
+				// First try to delete as empty directory
+				try {
+					await rmdir(normalizedPath);
+				} catch (error) {
+					// Directory might not be empty, this is handled by the client
+					// Returning error with specific message so client can handle it
+					return NextResponse.json(
+						{
+							error: "Directory not empty",
+							details: "Cannot delete non-empty directory",
+							isDirectory: true,
+						},
+						{ status: 400 },
+					);
+				}
+			} else {
+				// Delete file
+				await unlink(normalizedPath);
+			}
+
+			return NextResponse.json({
+				success: true,
+				message: stats.isDirectory()
+					? "Directory deleted successfully"
+					: "File deleted successfully",
+				path: normalizedPath,
+			});
+		} catch (error) {
+			console.error(`Error deleting ${normalizedPath}:`, error);
+			return NextResponse.json(
+				{
+					error: "Failed to delete",
+					details: (error as Error).message,
+				},
+				{ status: 500 },
+			);
+		}
+	} catch (error) {
+		console.error("Invalid DELETE request:", error);
+		return NextResponse.json({ error: "Invalid request" }, { status: 400 });
+	}
+}
+
+// PATCH endpoint to create directory
+export async function PATCH(request: Request) {
+	try {
+		const { path: dirPath, isDirectory, newName } = await request.json();
+
+		if (!dirPath) {
+			return NextResponse.json({ error: "Path is required" }, { status: 400 });
+		}
+
+		// Expand tilde in path if present
+		const expandedPath = dirPath.startsWith("~")
+			? expandTilde(dirPath)
+			: dirPath;
+
+		const projectRoot = process.cwd();
+
+		// Resolve relative paths against project root
+		const resolvedPath = path.isAbsolute(expandedPath)
+			? expandedPath
+			: path.join(projectRoot, expandedPath);
+
+		const normalizedPath = path.normalize(resolvedPath);
+
+		if (
+			!normalizedPath.startsWith(BASE_PATH) &&
+			!normalizedPath.startsWith(projectRoot)
+		) {
+			return NextResponse.json(
+				{ error: "Access denied: path outside allowed directory" },
+				{ status: 403 },
+			);
+		}
+
+		try {
+			// Handle rename if newName provided
+			if (newName) {
+				const newPath = path.join(path.dirname(normalizedPath), newName);
+				await fs.promises.rename(normalizedPath, newPath);
+				const stats = await stat(newPath);
+				return NextResponse.json({
+					success: true,
+					message: "Renamed successfully",
+					oldPath: normalizedPath,
+					path: newPath,
+					isDirectory: stats.isDirectory(),
+					lastModified: stats.mtime,
+				});
+			}
+
+			if (isDirectory) {
+				await mkdir(normalizedPath, { recursive: true });
+				const stats = await stat(normalizedPath);
+				return NextResponse.json({
+					success: true,
+					message: "Directory created successfully",
+					path: normalizedPath,
+					isDirectory: true,
+					lastModified: stats.mtime,
+				});
+			}
+
+			await writeFile(normalizedPath, "", "utf-8");
+			const stats = await stat(normalizedPath);
+			return NextResponse.json({
+				success: true,
+				message: "File created successfully",
+				path: normalizedPath,
+				isDirectory: false,
+				size: 0,
+				lastModified: stats.mtime,
+			});
+		} catch (error) {
+			console.error(`Error creating ${normalizedPath}:`, error);
+			return NextResponse.json(
+				{
+					error: `Failed to ${newName ? "rename" : isDirectory ? "create directory" : "create file"}`,
+					details: (error as Error).message,
+				},
+				{ status: 500 },
+			);
+		}
+	} catch (error) {
+		console.error("Invalid PATCH request:", error);
 		return NextResponse.json({ error: "Invalid request" }, { status: 400 });
 	}
 }

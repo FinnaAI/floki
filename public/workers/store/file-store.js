@@ -25,7 +25,7 @@ export const useFileStore = create((set, get) => ({
     searchQuery: "",
     pathHistory: [],
     pathForward: [],
-    selectedFiles: {},
+    selectedFiles: [],
     hasInitialized: false,
     needsDirectoryPermission: false,
     projectHandles: {},
@@ -322,24 +322,21 @@ export const useFileStore = create((set, get) => ({
     // Toggle file selection (for checkboxes)
     toggleFileSelection: (file) => {
         set((state) => {
-            const newSelectedFiles = { ...state.selectedFiles };
-            if (newSelectedFiles[file.path]) {
-                delete newSelectedFiles[file.path];
-            }
-            else {
-                newSelectedFiles[file.path] = file;
-            }
-            return { selectedFiles: newSelectedFiles };
+            const exists = state.selectedFiles.some((f) => f.path === file.path);
+            const updated = exists
+                ? state.selectedFiles.filter((f) => f.path !== file.path)
+                : [...state.selectedFiles, file];
+            return { selectedFiles: updated };
         });
     },
     // Check if file is selected
     isFileSelected: (file) => {
         const { selectedFiles } = get();
-        return !!selectedFiles[file.path];
+        return selectedFiles.some((f) => f.path === file.path);
     },
     // Clear all selected files
     clearSelectedFiles: () => {
-        set({ selectedFiles: {} });
+        set({ selectedFiles: [] });
     },
     // Add new method to handle folder opening
     openFolder: async () => {
@@ -517,6 +514,140 @@ export const useFileStore = create((set, get) => ({
                 loading: false,
                 directoryLoading: false,
             });
+        }
+    },
+    // Add file creation functionality
+    createFile: async (parentDir, fileName) => {
+        try {
+            const fullPath = parentDir ? `${parentDir}/${fileName}` : fileName;
+            // Call API to create file
+            const response = await fetch("/api/filesystem", {
+                method: "PATCH",
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify({
+                    path: fullPath,
+                    isDirectory: false,
+                }),
+            });
+            if (!response.ok) {
+                const error = await response.json();
+                throw new Error(error.error || "Failed to create file");
+            }
+            // Success - reload the directory to show the new file
+            const { loadDirectory } = get();
+            await loadDirectory(parentDir, false);
+        }
+        catch (error) {
+            console.error("Error creating file:", error);
+            throw error;
+        }
+    },
+    // Add folder creation functionality
+    createFolder: async (parentDir, folderName) => {
+        try {
+            const fullPath = parentDir ? `${parentDir}/${folderName}` : folderName;
+            // Call API to create folder
+            const response = await fetch("/api/filesystem", {
+                method: "PATCH",
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify({
+                    path: fullPath,
+                    isDirectory: true,
+                }),
+            });
+            if (!response.ok) {
+                const error = await response.json();
+                throw new Error(error.error || "Failed to create folder");
+            }
+            // Success - reload the directory to show the new folder
+            const { loadDirectory } = get();
+            await loadDirectory(parentDir, false);
+        }
+        catch (error) {
+            console.error("Error creating folder:", error);
+            throw error;
+        }
+    },
+    // Add delete functionality
+    deleteFile: async (filePath) => {
+        try {
+            // Call API to delete file or folder
+            const response = await fetch(`/api/filesystem?path=${encodeURIComponent(filePath)}`, {
+                method: "DELETE",
+            });
+            if (!response.ok) {
+                const error = await response.json();
+                throw new Error(error.error || "Failed to delete");
+            }
+            // Success - reload the parent directory
+            const parentDir = filePath.substring(0, filePath.lastIndexOf("/"));
+            const { loadDirectory } = get();
+            // If parent is empty string, we're at root
+            await loadDirectory(parentDir || get().currentPath, false);
+            // If the deleted file was selected, clear selection
+            const { selectedFile } = get();
+            if (selectedFile && selectedFile.path === filePath) {
+                set({ selectedFile: null });
+            }
+            // Remove from selected files if it was selected
+            set((state) => ({
+                selectedFiles: state.selectedFiles.filter((f) => f.path !== filePath),
+            }));
+        }
+        catch (error) {
+            console.error("Error deleting:", error);
+            throw error;
+        }
+    },
+    // Rename file or folder
+    renameItem: async (oldPath, newName) => {
+        try {
+            // Get parent directory path for reloading after rename
+            const parentDir = oldPath.substring(0, oldPath.lastIndexOf("/"));
+            const newPath = parentDir ? `${parentDir}/${newName}` : newName;
+            // For UI update - determine if this was the selected file
+            const { selectedFile } = get();
+            const wasSelected = selectedFile?.path === oldPath;
+            console.log(`Renaming ${oldPath} to ${newPath}`);
+            const response = await fetch("/api/filesystem", {
+                method: "PATCH",
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify({
+                    path: oldPath,
+                    newName,
+                }),
+            });
+            if (!response.ok) {
+                const error = await response.json();
+                throw new Error(error.error || "Failed to rename");
+            }
+            // Get the rename result with the new path
+            const result = await response.json();
+            // If the renamed item was selected, update selection to the new path
+            if (wasSelected && selectedFile) {
+                // Create new FileInfo with updated path/name
+                const updatedFile = {
+                    ...selectedFile,
+                    path: result.path,
+                    name: newName,
+                    lastModified: new Date(result.lastModified),
+                };
+                // Set as selected file to update UI
+                set({ selectedFile: updatedFile });
+            }
+            // Reload the directory to show changes
+            const { loadDirectory } = get();
+            await loadDirectory(parentDir || get().currentPath, false);
+        }
+        catch (error) {
+            console.error("Error renaming item:", error);
+            throw error;
         }
     },
 }));

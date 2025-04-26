@@ -10,7 +10,7 @@ import {
 } from "@/components/ui/dialog";
 import { useFileStore } from "@/store/file-store";
 import { useIDEStore } from "@/store/ide-store";
-import { AlertCircle, Power, RotateCw } from "lucide-react";
+import { AlertCircle, RotateCw } from "lucide-react";
 import dynamic from "next/dynamic";
 import { useCallback, useEffect, useState } from "react";
 import { EnvVarForm } from "./EnvVarForm";
@@ -97,9 +97,9 @@ export function VsTerminal() {
               Terminal
             </h1>
           </div> */}
-					<div className="flex h-8 items-center justify-between px-4 text-xs">
+					{/* <div className="flex h-8 items-center justify-between px-4 text-xs">
 						<div>Terminal</div>
-					</div>
+					</div> */}
 					<div className="flex items-center space-x-2">
 						{loading && (
 							<div className="mr-2 flex items-center">
@@ -123,7 +123,7 @@ export function VsTerminal() {
               <span>ENV</span>
             </Button> */}
 
-						<Button
+						{/* <Button
 							variant={connected ? "outline" : "default"}
 							size="sm"
 							onClick={() => {
@@ -159,7 +159,7 @@ export function VsTerminal() {
 							className="rounded-lg border-slate-200 ring-emerald-500/40 ring-offset-2 ring-offset-white transition-all hover:bg-slate-100 focus:ring-2 dark:border-slate-700 dark:ring-offset-slate-900 dark:hover:bg-slate-800"
 						>
 							Clear
-						</Button>
+						</Button> */}
 						{/* <Button
               variant="destructive"
               size="sm"
