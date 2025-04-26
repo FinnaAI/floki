@@ -11,6 +11,23 @@ import Image from "next/image";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createHighlighter } from "shiki";
 
+// Add this interface to declare the global window property
+declare global {
+	interface Window {
+		_tempFileDiff?: {
+			oldContent: string;
+			newContent: string;
+			hunks: Array<{
+				oldStart: number;
+				oldLines: number;
+				newStart: number;
+				newLines: number;
+				lines: string[];
+			}>;
+		};
+	}
+}
+
 // Monaco must load on the client only with no loading UI
 const MonacoEditor = dynamic(() => import("@monaco-editor/react"), {
 	ssr: false,
@@ -18,10 +35,17 @@ const MonacoEditor = dynamic(() => import("@monaco-editor/react"), {
 });
 
 // Also import the diff editor with no loading UI
-const MonacoDiffEditor = dynamic(
-	() => import("@monaco-editor/react").then((mod) => mod.DiffEditor),
+const DiffEditor = dynamic(
+	() =>
+		import("@monaco-editor/react").then((mod) => ({ default: mod.DiffEditor })),
 	{ ssr: false, loading: () => null },
 );
+
+// Add a more specific type for the diff editor
+type DiffEditorType = {
+	getOriginalEditor: () => Parameters<OnMount>[0];
+	getModifiedEditor: () => Parameters<OnMount>[0];
+};
 
 // Add theme loading functions
 const loadTheme = async (themeName: string) => {
@@ -92,7 +116,7 @@ const formatFileSize = (bytes: number): string => {
 	return `${(bytes / (1024 * 1024 * 1024)).toFixed(1)} GB`;
 };
 
-const FileViewer = ({
+const FileMonacoEditor = ({
 	selectedFile,
 	fileContent,
 	fileDiff,
@@ -106,11 +130,10 @@ const FileViewer = ({
 	const [availableThemes, setAvailableThemes] = useState<string[]>([]);
 	const editorRef = useRef<Parameters<OnMount>[0] | null>(null);
 	const monacoRef = useRef<Monaco | null>(null);
-	const diffEditorRef = useRef<
-		Parameters<typeof MonacoDiffEditor>["onMount"][0] | null
-	>(null);
-	const { getFileStatus } = useGitStatusStore();
+	const diffEditorRef = useRef<DiffEditorType | null>(null);
+	const { getFileStatus, fetchGitStatus } = useGitStatusStore();
 	const { editorTheme, setEditorTheme } = useIDEStore();
+	const [showDiff, setShowDiff] = useState(false);
 
 	// Load available themes
 	useEffect(() => {
@@ -123,6 +146,28 @@ const FileViewer = ({
 			const themeData = await loadTheme(themeName);
 			if (themeData && monacoRef.current) {
 				const themeId = themeName.toLowerCase().replace(/[^a-z0-9]/g, "-");
+
+				// Ensure all token properties are properly mapped (including fontStyle and background)
+				if (themeData.tokenColors) {
+					for (const tokenColor of themeData.tokenColors) {
+						if (tokenColor.settings && tokenColor.scope) {
+							// Make sure fontStyle and background are preserved
+							const settings: Record<string, string> = {
+								...tokenColor.settings,
+								fontStyle: tokenColor.settings.fontStyle,
+								background: tokenColor.settings.background,
+							};
+
+							// Remove any undefined properties
+							for (const key of Object.keys(settings)) {
+								if (settings[key] === undefined) {
+									delete settings[key];
+								}
+							}
+						}
+					}
+				}
+
 				monacoRef.current.editor.defineTheme(themeId, themeData);
 				monacoRef.current.editor.setTheme(themeId);
 				setEditorTheme(themeName); // Update the persisted theme
@@ -148,7 +193,15 @@ const FileViewer = ({
 
 		// Apply performance optimizations
 		editor.getModel()?.setEOL(0); // Use \n for line endings
-		monaco.editor.setTheme(editorTheme);
+
+		// Set a default theme that's guaranteed to exist to avoid errors
+		monaco.editor.defineTheme("default-dark", {
+			base: "vs-dark",
+			inherit: true,
+			rules: [],
+			colors: {},
+		});
+		monaco.editor.setTheme("default-dark");
 
 		// Optimize editor settings for performance
 		editor.updateOptions({
@@ -168,8 +221,12 @@ const FileViewer = ({
 			},
 		});
 
-		// Apply the current theme
-		void changeTheme(editorTheme);
+		// Apply the current theme safely
+		try {
+			void changeTheme(editorTheme);
+		} catch (e) {
+			console.warn("Error applying editor theme:", e);
+		}
 
 		void (async () => {
 			const ADDITIONAL_LANGUAGES = [
@@ -183,22 +240,147 @@ const FileViewer = ({
 				monacoRef.current?.languages.register({ id: lang });
 			}
 
-			const highlighter = await createHighlighter({
-				themes: ["dark-plus", "vs-dark"],
-				langs: ADDITIONAL_LANGUAGES,
-			});
+			try {
+				const highlighter = await createHighlighter({
+					themes: ["vs-dark", "dark-plus", "github-dark", "github-light"],
+					langs: ADDITIONAL_LANGUAGES,
+				});
 
-			shikiToMonaco(highlighter, monacoRef.current);
+				if (monacoRef.current) {
+					shikiToMonaco(highlighter, monacoRef.current);
+				}
+			} catch (e) {
+				console.warn("Error initializing syntax highlighter:", e);
+			}
 		})();
 	};
 
 	// Handle diff editor mount
-	const handleDiffEditorDidMount = (
-		editor: Parameters<typeof MonacoDiffEditor>["onMount"][0],
-	) => {
+	const handleDiffEditorDidMount = (editor: DiffEditorType) => {
 		diffEditorRef.current = editor;
-		// Apply the current theme immediately after mount
-		void changeTheme(editorTheme);
+
+		// Define default vs-dark theme if monaco is available
+		if (monacoRef.current) {
+			monacoRef.current.editor.defineTheme("vs-dark", {
+				base: "vs-dark",
+				inherit: true,
+				rules: [],
+				colors: {},
+			});
+			monacoRef.current.editor.setTheme("vs-dark");
+		}
+	};
+
+	// Generate/fetch diff for the current file
+	const loadDiff = async () => {
+		if (!selectedFile) return;
+
+		try {
+			// For modified files, request git diff
+			if (fileStatus === "modified") {
+				try {
+					// Reset diff state before loading
+					window._tempFileDiff = undefined;
+
+					// Get the full path of the file
+					const filePath = selectedFile.path;
+					console.log(`Fetching git diff for: ${filePath}`);
+
+					// Include the project root in the request to help server find the git repo
+					const projectRoot = currentPath || "";
+					const encodedPath = encodeURIComponent(filePath);
+					const encodedRoot = encodeURIComponent(projectRoot);
+
+					// We already have the current content in fileContent, so include it in the request
+					// to avoid trying to read the file again on the server
+					const encodedContent = fileContent
+						? encodeURIComponent(fileContent)
+						: "";
+
+					const response = await fetch(
+						`/api/git/diff?path=${encodedPath}&rootPath=${encodedRoot}&currentContent=${encodedContent}`,
+					);
+
+					if (response.ok) {
+						const diffData = await response.json();
+						console.log("Diff data received:", diffData);
+
+						// Store the diff data for use in rendering
+						if (diffData && !diffData.error) {
+							// Update the fileDiff state directly
+							// Convert to string explicitly to avoid undefined issues
+							const oldContent = String(diffData.oldContent || "");
+							const newContent = String(
+								diffData.newContent || fileContent || "",
+							);
+
+							// Store our diff data to be accessible later
+							window._tempFileDiff = {
+								oldContent,
+								newContent,
+								hunks: diffData.hunks || [],
+							};
+
+							// Force a re-render by toggling showDiff off and on
+							setShowDiff(false);
+							setTimeout(() => setShowDiff(true), 50);
+							return;
+						}
+
+						console.error("Error in diff data:", diffData.error);
+
+						// Create a simple diff with no hunks if there was an error
+						window._tempFileDiff = {
+							oldContent: "",
+							newContent: fileContent || "",
+							hunks: [],
+						};
+						setShowDiff(true);
+					} else {
+						console.error(
+							"Error fetching diff, response not OK:",
+							response.status,
+						);
+						// Create a simple diff with no hunks if there was an error
+						window._tempFileDiff = {
+							oldContent: "",
+							newContent: fileContent || "",
+							hunks: [],
+						};
+						setShowDiff(true);
+					}
+				} catch (error) {
+					console.error("Error fetching diff:", error);
+					// Create a simple diff with no hunks if there was an error
+					window._tempFileDiff = {
+						oldContent: "",
+						newContent: fileContent || "",
+						hunks: [],
+					};
+					setShowDiff(true);
+				}
+			} else {
+				// For non-modified files, create a simple diff with no hunks
+				window._tempFileDiff = {
+					oldContent: "",
+					newContent: fileContent || "",
+					hunks: [],
+				};
+				setShowDiff(true);
+			}
+		} catch (error) {
+			console.error("Error in loadDiff:", error);
+			setShowDiff(false);
+		}
+	};
+
+	// Toggle diff view
+	const toggleDiffView = () => {
+		if (showDiff) {
+			setShowDiff(false);
+		} else {
+			void loadDiff();
+		}
 	};
 
 	// Determine if this is an image file
@@ -258,23 +440,6 @@ const FileViewer = ({
 		return languageMap[ext] || "text";
 	}, [selectedFile]);
 
-	// Determine file git status
-	const getFileGitStatus = useMemo(() => {
-		if (!selectedFile || !gitStatus || !currentPath) return null;
-
-		// Get the relative path for matching
-		const relativePath = selectedFile.path
-			.replace(currentPath, "")
-			.replace(/^\/+/, ""); // Remove leading slashes
-
-		if (gitStatus.modified.includes(relativePath)) return "modified";
-		if (gitStatus.added.includes(relativePath)) return "added";
-		if (gitStatus.deleted.includes(relativePath)) return "deleted";
-		if (gitStatus.untracked.includes(relativePath)) return "untracked";
-
-		return null;
-	}, [selectedFile, gitStatus, currentPath]);
-
 	// Get file status from the store
 	const fileStatus = useMemo(() => {
 		if (!selectedFile) return null;
@@ -282,14 +447,14 @@ const FileViewer = ({
 	}, [selectedFile, getFileStatus]);
 
 	// Whether to show the diff editor
-	const showDiffEditor = useMemo(() => {
+	const shouldShowDiff = useMemo(() => {
 		return (
+			showDiff &&
 			fileStatus === "modified" &&
-			fileDiff &&
-			fileDiff.oldContent !== null &&
-			fileDiff.newContent !== null
+			!isImageFile &&
+			selectedFile != null
 		);
-	}, [fileStatus, fileDiff]);
+	}, [showDiff, fileStatus, isImageFile, selectedFile]);
 
 	return (
 		<div className="flex h-full flex-col overflow-hidden">
@@ -300,16 +465,26 @@ const FileViewer = ({
 							{selectedFile.path.replace(`${currentPath}/`, "")}
 
 							{/* Edit toggle button */}
-							{selectedFile && !isImageFile && !showDiffEditor && (
+							{selectedFile && !isImageFile && !shouldShowDiff && (
 								<button
 									type="button"
 									onClick={toggleEditMode}
-									className="rounded-md px-2 py-1 text-muted-foreground text-xs"
+									className="ml-2 rounded-md px-2 py-1 text-muted-foreground text-xs"
 								>
 									{isEditing ? "Save" : "Edit"}
 								</button>
 							)}
-							{/* <span className="ml-2">{formatFileSize(selectedFile.size)}</span> */}
+
+							{/* Diff view toggle button */}
+							{fileStatus === "modified" && !isImageFile && (
+								<button
+									type="button"
+									onClick={toggleDiffView}
+									className="ml-2 rounded-md px-2 py-1 text-blue-500 text-xs"
+								>
+									{shouldShowDiff ? "Hide Diff" : "Show Diff"}
+								</button>
+							)}
 						</span>
 					) : (
 						<span className="">No file selected</span>
@@ -395,18 +570,39 @@ const FileViewer = ({
 					) : (
 						<>
 							{/* Show Git Diff if available using Monaco Diff Editor */}
-							{showDiffEditor && (
-								<div className="mb-6 overflow-hidden border border-slate-200 bg-slate-50 dark:border-slate-800 dark:bg-slate-900">
-									<div className="border-slate-200 border-b bg-slate-100 px-4 py-2 font-medium dark:border-slate-700 dark:bg-slate-800">
-										Git Diff
+							{shouldShowDiff && fileContent && (
+								<div className="mb-6 overflow-hidden">
+									<div className="px-4 py-2 font-medium">
+										Git Diff{" "}
+										{fileStatus && (
+											<span className="ml-2 text-amber-500 text-sm">
+												({fileStatus})
+											</span>
+										)}
 									</div>
-									<div className="h-[40vh]">
-										<MonacoDiffEditor
-											height="40vh"
-											original={fileDiff?.oldContent || ""}
-											modified={fileDiff?.newContent || ""}
+									<div className="w-full overflow-hidden">
+										<DiffEditor
+											original={
+												window._tempFileDiff?.oldContent ||
+												fileDiff?.oldContent ||
+												""
+											}
+											modified={
+												window._tempFileDiff?.newContent ||
+												fileDiff?.newContent ||
+												fileContent ||
+												""
+											}
 											language={getLanguage}
-											theme={editorTheme}
+											theme="github-dark"
+											beforeMount={(monaco) => {
+												monaco.editor.defineTheme("github-dark", {
+													base: "vs-dark",
+													inherit: true,
+													rules: [],
+													colors: {},
+												});
+											}}
 											options={{
 												readOnly: true,
 												minimap: { enabled: false },
@@ -419,6 +615,8 @@ const FileViewer = ({
 												renderLineHighlight: "none",
 											}}
 											onMount={handleDiffEditorDidMount}
+											height="40vh"
+											key={`diff-${selectedFile?.path}-${showDiff}`}
 										/>
 									</div>
 								</div>
@@ -509,4 +707,4 @@ const FileViewer = ({
 	);
 };
 
-export { FileViewer };
+export { FileMonacoEditor as FileViewer };

@@ -1,6 +1,6 @@
 "use client";
 
-import { FileViewer } from "@/components/FileViewer";
+import { FileViewer } from "@/components/file-monaco-editor";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { createFileSystem } from "@/lib/file-system";
 import { useFileStore } from "@/store/file-store";

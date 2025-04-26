@@ -1,6 +1,6 @@
+import { promises as fs } from "fs";
 import { execSync } from "node:child_process";
-import * as fs from "node:fs";
-import * as path from "node:path";
+import path from "path";
 import { type NextRequest, NextResponse } from "next/server";
 
 interface GitStatus {
@@ -8,175 +8,136 @@ interface GitStatus {
 	added: string[];
 	untracked: string[];
 	deleted: string[];
-	ignored: string[];
 	error?: string;
 }
 
-function getGitStatus(dirPath: string, includeIgnored = false): GitStatus {
+async function findGitRoot(startPath: string): Promise<string | null> {
+	// Handle empty path
+	if (!startPath) return null;
+
+	// Try extracting just the real filesystem path
+	let dirPath = startPath;
+
+	// For paths from a file handle, they often have a format like "folder (path/to/folder)"
+	const folderNameMatch = startPath.match(/^(.*?)\s+\((.*?)\)$/);
+	if (folderNameMatch?.[2]) {
+		dirPath = folderNameMatch[2]; // Use the actual path in parentheses
+		console.log(`Extracted path from folder handle: ${dirPath}`);
+	}
+
 	try {
-		// Check if directory is part of a git repository
-		let isGitRepo = false;
-
-		// First check if there's a .git directory
-		if (fs.existsSync(path.join(dirPath, ".git"))) {
-			isGitRepo = true;
-		} else {
-			// Try to run git command, but catch errors if git is not installed
+		console.log(`Checking for .git in: ${dirPath}`);
+		// Try going up the directory tree to find .git
+		let currentPath = dirPath;
+		while (currentPath) {
 			try {
-				const result = execSync("git rev-parse --is-inside-work-tree", {
-					cwd: dirPath,
-					stdio: ["ignore", "pipe", "ignore"],
-				});
-				isGitRepo = result.toString().trim() === "true";
-			} catch (gitError) {
-				console.log("Git command failed, assuming not a git repository");
-				isGitRepo = false;
+				const gitDir = path.join(currentPath, ".git");
+				const stats = await fs.stat(gitDir);
+				if (stats.isDirectory()) {
+					console.log(`Found git repository at: ${currentPath}`);
+					return currentPath;
+				}
+			} catch (e) {
+				// .git does not exist at this level, continue up
 			}
-		}
 
-		if (!isGitRepo) {
+			const parentPath = path.dirname(currentPath);
+			if (parentPath === currentPath) break; // We've reached the root
+			currentPath = parentPath;
+		}
+	} catch (error) {
+		console.error(`Error finding git root: ${error}`);
+	}
+
+	return null;
+}
+
+async function getGitStatus(dirPath: string): Promise<GitStatus> {
+	try {
+		// First find the git root
+		const gitRoot = await findGitRoot(dirPath);
+		if (!gitRoot) {
+			console.error(`No git repository found for: ${dirPath}`);
 			return {
 				modified: [],
 				added: [],
 				deleted: [],
 				untracked: [],
-				ignored: [],
 				error: "Not a git repository",
 			};
 		}
 
-		let gitStatus = "";
-		try {
-			gitStatus = execSync("git status --porcelain", {
-				cwd: dirPath,
-			}).toString();
-		} catch (gitError) {
-			console.error("Error running git status command:", gitError);
-			return {
-				modified: [],
-				added: [],
-				deleted: [],
-				untracked: [],
-				ignored: [],
-				error: "Git status command failed",
-			};
-		}
+		console.log(`Using git repository at: ${gitRoot}`);
 
-		const files = gitStatus.split("\n").filter(Boolean);
+		// Get status using porcelain format for stable parsing
+		const output = execSync("git status --porcelain", {
+			cwd: gitRoot,
+			encoding: "utf-8",
+		});
 
-		const statusMap = {
-			modified: [] as string[],
-			added: [] as string[],
-			deleted: [] as string[],
-			untracked: [] as string[],
-			ignored: [] as string[],
+		const result: GitStatus = {
+			modified: [],
+			added: [],
+			deleted: [],
+			untracked: [],
 		};
 
-		for (const file of files) {
-			const status = file.substring(0, 2).trim();
-			const filepath = file.substring(3);
+		const lines = output.split("\n");
+		for (const line of lines) {
+			if (!line) continue;
 
-			if (status === "M" || status === "MM") {
-				statusMap.modified.push(filepath);
-			} else if (status === "A") {
-				statusMap.added.push(filepath);
-			} else if (status === "D") {
-				statusMap.deleted.push(filepath);
-			} else if (status === "??") {
-				statusMap.untracked.push(filepath);
+			const status = line.slice(0, 2);
+			const filePath = line.slice(3);
+
+			// Handle renamed files
+			const parts = filePath.split(" -> ");
+			const actualPath = parts.length > 1 && parts[1] ? parts[1] : filePath;
+
+			if (status.includes("M") && actualPath) {
+				result.modified.push(actualPath);
+			} else if (status.includes("A") && actualPath) {
+				result.added.push(actualPath);
+			} else if (status.includes("D") && actualPath) {
+				result.deleted.push(actualPath);
+			} else if (status === "??" && actualPath) {
+				result.untracked.push(actualPath);
 			}
 		}
 
-		// Get ignored files if requested
-		if (includeIgnored) {
-			try {
-				// First, get files that are already ignored in the working directory
-				const ignoredOutput = execSync(
-					"git ls-files --others --ignored --exclude-standard",
-					{
-						cwd: dirPath,
-					},
-				).toString();
-
-				statusMap.ignored = ignoredOutput.split("\n").filter(Boolean);
-
-				// Then, add gitignore patterns for better matching
-				if (fs.existsSync(path.join(dirPath, ".gitignore"))) {
-					const gitignoreContent = fs.readFileSync(
-						path.join(dirPath, ".gitignore"),
-						"utf-8",
-					);
-
-					// Process each line in the gitignore file
-					const patterns = gitignoreContent
-						.split("\n")
-						.map((line) => line.trim())
-						.filter((line) => line && !line.startsWith("#"))
-						.flatMap((pattern) => {
-							// Ensure directory patterns end with slash
-							if (pattern.endsWith("/")) {
-								return pattern;
-							}
-							// If pattern doesn't have an extension and doesn't have a wildcard,
-							// it might be a directory - add both versions
-							if (!pattern.includes(".") && !pattern.includes("*")) {
-								return [pattern, `${pattern}/`];
-							}
-							return pattern;
-						});
-
-					// Add these processed patterns
-					statusMap.ignored.push(...patterns);
-				}
-
-				// Add some common ignored patterns that might not be in .gitignore
-				const commonIgnoredPatterns = [
-					"node_modules/",
-					".git/",
-					".DS_Store",
-					"*.log",
-					"dist/",
-					"build/",
-					".next/",
-					"*.swp",
-					"*.bak",
-					".idea/",
-					".vscode/",
-				];
-				statusMap.ignored.push(...commonIgnoredPatterns);
-
-				// Remove duplicates
-				statusMap.ignored = [...new Set(statusMap.ignored)];
-			} catch (error) {
-				console.error("Error getting git ignored files:", error);
-			}
-		}
-
-		return statusMap;
+		return result;
 	} catch (error) {
-		console.error(`Error getting git status for ${dirPath}:`, error);
+		console.error("Error getting git status:", error);
 		return {
 			modified: [],
 			added: [],
 			deleted: [],
 			untracked: [],
-			ignored: [],
-			error: (error as Error).message,
+			error: error instanceof Error ? error.message : "Unknown error",
 		};
 	}
 }
 
 export async function GET(request: NextRequest) {
 	const { searchParams } = new URL(request.url);
-	const dirPath = searchParams.get("path") || process.cwd();
-	const showIgnored = searchParams.get("showIgnored") === "true";
+	const dirPath = searchParams.get("path");
+
+	if (!dirPath) {
+		return NextResponse.json(
+			{ error: "Path parameter is required" },
+			{ status: 400 },
+		);
+	}
+
+	console.log(`Fetching git status for path: ${dirPath}`);
 
 	try {
-		const gitStatus = getGitStatus(dirPath, showIgnored);
-		return NextResponse.json(gitStatus);
+		const status = await getGitStatus(dirPath);
+		// console.log("Git status result:", status);
+		return NextResponse.json(status);
 	} catch (error) {
+		console.error("Error in git status route:", error);
 		return NextResponse.json(
-			{ error: (error as Error).message },
+			{ error: "Failed to get git status" },
 			{ status: 500 },
 		);
 	}
