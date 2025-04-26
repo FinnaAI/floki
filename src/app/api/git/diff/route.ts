@@ -39,7 +39,7 @@ async function findGitRoot(startPath: string): Promise<string | null> {
 				const gitDir = path.join(currentPath, ".git");
 				const stats = await fs.stat(gitDir);
 				if (stats.isDirectory()) {
-					console.log(`Found git repository at: ${currentPath}`);
+					// console.log(`Found git repository at: ${currentPath}`);
 					return currentPath;
 				}
 			} catch (e) {
@@ -75,7 +75,7 @@ async function getGitDiff(
 			};
 		}
 
-		console.log(`Using git repository at: ${gitRoot}`);
+		// console.log(`Using git repository at: ${gitRoot}`);
 
 		// Get the filename relative to git root
 		const relativeFilePath = path.relative(gitRoot, filePath);

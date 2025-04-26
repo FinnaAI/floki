@@ -110,15 +110,6 @@ class WebFileSystem {
         const writable = await fileHandle.createWritable();
         await writable.write(content);
         await writable.close();
-        const file = await fileHandle.getFile();
-        return {
-            name: file.name,
-            path,
-            isDirectory: false,
-            size: file.size,
-            lastModified: new Date(file.lastModified),
-            handle: fileHandle,
-        };
     }
     watchChanges(path, callback) {
         if (!this.worker) {
@@ -144,6 +135,128 @@ class WebFileSystem {
                 messageId: `cleanup_${messageId}`,
             });
         };
+    }
+    async deleteFile(filePath) {
+        if (!this.folderHandle) {
+            throw new Error("No folder selected");
+        }
+        // Navigate to the parent directory
+        const parts = filePath.split("/").filter(Boolean);
+        const fileName = parts.pop();
+        if (!fileName)
+            throw new Error("Invalid file path");
+        let currentHandle = this.folderHandle;
+        for (const part of parts) {
+            currentHandle = await currentHandle.getDirectoryHandle(part);
+        }
+        await currentHandle.removeEntry(fileName);
+    }
+    async createDirectory(dirPath) {
+        if (!this.folderHandle) {
+            throw new Error("No folder selected");
+        }
+        const parts = dirPath.split("/").filter(Boolean);
+        let currentHandle = this.folderHandle;
+        for (const part of parts) {
+            currentHandle = await currentHandle.getDirectoryHandle(part, {
+                create: true,
+            });
+        }
+    }
+    async deleteDirectory(dirPath) {
+        if (!this.folderHandle) {
+            throw new Error("No folder selected");
+        }
+        // Navigate to the parent directory
+        const parts = dirPath.split("/").filter(Boolean);
+        const dirName = parts.pop();
+        if (!dirName)
+            throw new Error("Invalid directory path");
+        let currentHandle = this.folderHandle;
+        for (const part of parts) {
+            currentHandle = await currentHandle.getDirectoryHandle(part);
+        }
+        await currentHandle.removeEntry(dirName, { recursive: true });
+    }
+    async moveFile(oldPath, newPath) {
+        // Copy the file to new location and delete the old one
+        await this.copyFile(oldPath, newPath);
+        await this.deleteFile(oldPath);
+    }
+    async copyFile(sourcePath, destPath) {
+        const { content } = await this.readFile(sourcePath);
+        await this.writeFile(destPath, content);
+    }
+    async exists(path) {
+        try {
+            await this.getFileInfo(path);
+            return true;
+        }
+        catch {
+            return false;
+        }
+    }
+    async isDirectory(path) {
+        try {
+            const info = await this.getFileInfo(path);
+            return info.isDirectory;
+        }
+        catch {
+            return false;
+        }
+    }
+    async getFileInfo(path) {
+        if (!this.folderHandle) {
+            throw new Error("No folder selected");
+        }
+        const parts = path.split("/").filter(Boolean);
+        let currentHandle = this.folderHandle;
+        const name = parts.length > 0 && parts[parts.length - 1]
+            ? parts[parts.length - 1]
+            : this.folderHandle.name;
+        try {
+            // Navigate through directories
+            for (let i = 0; i < parts.length - 1; i++) {
+                const part = parts[i];
+                if (!part)
+                    continue;
+                currentHandle = await currentHandle.getDirectoryHandle(part);
+            }
+            // Handle the last part if it exists
+            if (parts.length > 0) {
+                const lastPart = parts[parts.length - 1];
+                if (!lastPart)
+                    throw new Error("Invalid path");
+                try {
+                    currentHandle = await currentHandle.getFileHandle(lastPart);
+                }
+                catch {
+                    currentHandle = await currentHandle.getDirectoryHandle(lastPart);
+                }
+            }
+            if (currentHandle.kind === "file") {
+                const file = await currentHandle.getFile();
+                return {
+                    name: name || "",
+                    path,
+                    isDirectory: false,
+                    size: file.size,
+                    lastModified: new Date(file.lastModified),
+                    handle: currentHandle,
+                };
+            }
+            return {
+                name: name || "",
+                path,
+                isDirectory: true,
+                size: 0,
+                lastModified: new Date(),
+                handle: currentHandle,
+            };
+        }
+        catch (error) {
+            throw new Error(`File or directory not found: ${path}`);
+        }
     }
 }
 class ElectronFileSystem {
@@ -176,87 +289,40 @@ class ElectronFileSystem {
         return null;
     }
     async listFiles(dirPath, recursive = false) {
-        return new Promise((resolve, reject) => {
-            if (!this.worker) {
-                reject(new Error("Worker not initialized"));
-                return;
-            }
-            const messageId = Math.random().toString(36).substring(7);
-            const handler = (event) => {
-                const { type, files, error, messageId: responseId } = event.data;
-                if (responseId !== messageId)
-                    return;
-                this.worker?.removeEventListener("message", handler);
-                if (type === "error") {
-                    reject(new Error(error));
-                }
-                else if (type === "fileList") {
-                    resolve(files);
-                }
-            };
-            this.worker.addEventListener("message", handler);
-            this.worker.postMessage({
-                type: "listFiles",
-                path: dirPath,
-                recursive,
-                messageId,
-            });
+        return this.sendWorkerMessage("listFiles", {
+            path: dirPath,
+            recursive,
         });
     }
     async readFile(path) {
-        return new Promise((resolve, reject) => {
-            if (!this.worker) {
-                reject(new Error("Worker not initialized"));
-                return;
-            }
-            const messageId = Math.random().toString(36).substring(7);
-            const handler = (event) => {
-                const { type, content, info, error, messageId: responseId, } = event.data;
-                if (responseId !== messageId)
-                    return;
-                this.worker?.removeEventListener("message", handler);
-                if (type === "error") {
-                    reject(new Error(error));
-                }
-                else if (type === "fileContent") {
-                    resolve({ content, info });
-                }
-            };
-            this.worker.addEventListener("message", handler);
-            this.worker.postMessage({
-                type: "readFile",
-                path,
-                messageId,
-            });
-        });
+        return this.sendWorkerMessage("readFile", { path });
     }
     async writeFile(path, content) {
-        return new Promise((resolve, reject) => {
-            if (!this.worker) {
-                reject(new Error("Worker not initialized"));
-                return;
-            }
-            const messageId = Math.random().toString(36).substring(7);
-            const handler = (event) => {
-                const { type, info, error, messageId: responseId } = event.data;
-                if (responseId !== messageId)
-                    return;
-                this.worker?.removeEventListener("message", handler);
-                if (type === "error") {
-                    reject(new Error(error));
-                }
-                else if (type === "fileWritten") {
-                    resolve(info);
-                }
-            };
-            this.worker.addEventListener("message", handler);
-            this.worker.postMessage({
-                type: "writeFile",
-                path,
-                content,
-                messageId,
-            });
-        });
+        return this.sendWorkerMessage("writeFile", { path, content });
+    }
+    async deleteFile(filePath) {
+        return this.sendWorkerMessage("deleteFile", { path: filePath });
+    }
+    async createDirectory(dirPath) {
+        return this.sendWorkerMessage("createDirectory", { path: dirPath });
+    }
+    async deleteDirectory(dirPath) {
+        return this.sendWorkerMessage("deleteDirectory", { path: dirPath });
+    }
+    async moveFile(oldPath, newPath) {
+        return this.sendWorkerMessage("moveFile", { oldPath, newPath });
+    }
+    async copyFile(sourcePath, destPath) {
+        return this.sendWorkerMessage("copyFile", { sourcePath, destPath });
+    }
+    async exists(path) {
+        return this.sendWorkerMessage("exists", { path });
+    }
+    async isDirectory(path) {
+        return this.sendWorkerMessage("isDirectory", { path });
+    }
+    async getFileInfo(path) {
+        return this.sendWorkerMessage("getFileInfo", { path });
     }
     watchChanges(path, callback) {
         if (!this.worker) {
@@ -282,6 +348,33 @@ class ElectronFileSystem {
                 messageId: `cleanup_${messageId}`,
             });
         };
+    }
+    sendWorkerMessage(type, data) {
+        return new Promise((resolve, reject) => {
+            if (!this.worker) {
+                reject(new Error("Worker not initialized"));
+                return;
+            }
+            const messageId = Math.random().toString(36).substring(7);
+            const handler = (event) => {
+                const { type: responseType, data: responseData, error, messageId: responseId, } = event.data;
+                if (responseId !== messageId)
+                    return;
+                this.worker?.removeEventListener("message", handler);
+                if (responseType === "error") {
+                    reject(new Error(error));
+                }
+                else {
+                    resolve(responseData);
+                }
+            };
+            this.worker.addEventListener("message", handler);
+            this.worker.postMessage({
+                type,
+                ...data,
+                messageId,
+            });
+        });
     }
 }
 export function createFileSystem() {

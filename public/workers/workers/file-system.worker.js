@@ -114,7 +114,15 @@ async function detectChanges(path) {
     for (const [path, file] of fileCache) {
         if (!newCache.has(path)) {
             console.log("[Worker] File deleted:", path);
-            changes.push({ ...file, deleted: true });
+            // Create a new FileInfo object without the deleted property
+            const { name, path: filePath, isDirectory, size, lastModified } = file;
+            changes.push({
+                name,
+                path: filePath,
+                isDirectory,
+                size,
+                lastModified,
+            });
         }
     }
     // Update cache

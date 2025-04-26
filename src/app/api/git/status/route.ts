@@ -34,7 +34,7 @@ async function findGitRoot(startPath: string): Promise<string | null> {
 				const gitDir = path.join(currentPath, ".git");
 				const stats = await fs.stat(gitDir);
 				if (stats.isDirectory()) {
-					console.log(`Found git repository at: ${currentPath}`);
+					// console.log(`Found git repository at: ${currentPath}`);
 					return currentPath;
 				}
 			} catch (e) {
@@ -67,7 +67,7 @@ async function getGitStatus(dirPath: string): Promise<GitStatus> {
 			};
 		}
 
-		console.log(`Using git repository at: ${gitRoot}`);
+		// console.log(`Using git repository at: ${gitRoot}`);
 
 		// Get status using porcelain format for stable parsing
 		const output = execSync("git status --porcelain", {
@@ -128,7 +128,7 @@ export async function GET(request: NextRequest) {
 		);
 	}
 
-	console.log(`Fetching git status for path: ${dirPath}`);
+	// console.log(`Fetching git status for path: ${dirPath}`);
 
 	try {
 		const status = await getGitStatus(dirPath);

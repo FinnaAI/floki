@@ -6,7 +6,7 @@ let gitStatusPollIntervalId = null;
 // Worker instance will be stored here
 let gitStatusWorker = null;
 // Worker initialization function
-const initWorker = () => {
+const initWorker = (get) => {
     if (typeof window === "undefined" || gitStatusWorker)
         return null;
     try {
@@ -19,20 +19,32 @@ const initWorker = () => {
         window.addEventListener("error", (e) => {
             if (e.filename?.includes("git-status.worker.js")) {
                 console.error("[GitStore] Worker failed to load:", e.message);
+                // Only set up fallback if worker fails to load
+                setTimeout(() => {
+                    if (!gitStatusWorker) {
+                        get().setupFallbackPolling();
+                    }
+                }, 1000);
             }
         }, { once: true });
         return gitStatusWorker;
     }
     catch (error) {
         console.error("[GitStore] Failed to initialize worker:", error);
+        // Only set up fallback if worker init fails
+        setTimeout(() => {
+            if (!gitStatusWorker) {
+                get().setupFallbackPolling();
+            }
+        }, 1000);
         return null;
     }
 };
 export const useGitStatusStore = create((set, get) => {
     // Initialize worker if we're in the browser
     if (typeof window !== "undefined") {
-        // Try to initialize the worker
-        const worker = initWorker();
+        // Pass get to initWorker
+        const worker = initWorker(get);
         if (worker) {
             worker.onmessage = (event) => {
                 const { type, status, error } = event.data;
@@ -239,7 +251,7 @@ export const useGitStatusStore = create((set, get) => {
                 console.error("[GitStore] Cannot fetch git status: No path specified");
                 return null;
             }
-            console.log("[GitStore] Manually fetching git status for:", currentPath);
+            // console.log("[GitStore] Manually fetching git status for:", currentPath);
             try {
                 // First normalize the path for API call
                 let apiPath = currentPath;
@@ -290,8 +302,8 @@ export const useGitStatusStore = create((set, get) => {
         },
         setupFallbackPolling: () => {
             console.log("[GitStore] Setting up fallback polling");
-            // Don't set up polling if we already have it active
-            if (get().isPolling)
+            // Don't set up polling if we already have it active or if worker is running
+            if (get().isPolling || gitStatusWorker)
                 return;
             const pollInterval = 5000; // 5 seconds
             // Initial fetch

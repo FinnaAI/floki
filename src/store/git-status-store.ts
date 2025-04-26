@@ -37,7 +37,7 @@ interface GitStatusState {
 let gitStatusWorker: Worker | null = null;
 
 // Worker initialization function
-const initWorker = () => {
+const initWorker = (get: () => GitStatusState) => {
 	if (typeof window === "undefined" || gitStatusWorker) return null;
 
 	try {
@@ -58,6 +58,12 @@ const initWorker = () => {
 			(e) => {
 				if (e.filename?.includes("git-status.worker.js")) {
 					console.error("[GitStore] Worker failed to load:", e.message);
+					// Only set up fallback if worker fails to load
+					setTimeout(() => {
+						if (!gitStatusWorker) {
+							get().setupFallbackPolling();
+						}
+					}, 1000);
 				}
 			},
 			{ once: true },
@@ -66,6 +72,12 @@ const initWorker = () => {
 		return gitStatusWorker;
 	} catch (error) {
 		console.error("[GitStore] Failed to initialize worker:", error);
+		// Only set up fallback if worker init fails
+		setTimeout(() => {
+			if (!gitStatusWorker) {
+				get().setupFallbackPolling();
+			}
+		}, 1000);
 		return null;
 	}
 };
@@ -73,8 +85,8 @@ const initWorker = () => {
 export const useGitStatusStore = create<GitStatusState>((set, get) => {
 	// Initialize worker if we're in the browser
 	if (typeof window !== "undefined") {
-		// Try to initialize the worker
-		const worker = initWorker();
+		// Pass get to initWorker
+		const worker = initWorker(get);
 		if (worker) {
 			worker.onmessage = (event) => {
 				const { type, status, error } = event.data;
@@ -324,7 +336,7 @@ export const useGitStatusStore = create<GitStatusState>((set, get) => {
 				return null;
 			}
 
-			console.log("[GitStore] Manually fetching git status for:", currentPath);
+			// console.log("[GitStore] Manually fetching git status for:", currentPath);
 
 			try {
 				// First normalize the path for API call
@@ -388,8 +400,8 @@ export const useGitStatusStore = create<GitStatusState>((set, get) => {
 
 		setupFallbackPolling: () => {
 			console.log("[GitStore] Setting up fallback polling");
-			// Don't set up polling if we already have it active
-			if (get().isPolling) return;
+			// Don't set up polling if we already have it active or if worker is running
+			if (get().isPolling || gitStatusWorker) return;
 
 			const pollInterval = 5000; // 5 seconds
 

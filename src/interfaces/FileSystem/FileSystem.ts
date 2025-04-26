@@ -4,16 +4,23 @@ export interface FileInfo {
 	isDirectory: boolean;
 	size: number;
 	lastModified: Date;
-	handle?: FileSystemFileHandle | FileSystemDirectoryHandle; // For browser
-	deleted?: boolean; // For tracking deletions
-	isLarge?: boolean; // For large directories that should be lazy loaded
+	handle?: FileSystemFileHandle | FileSystemDirectoryHandle;
+	deleted?: boolean;
 }
 
 // Base interface with common methods
 export interface BaseFileSystem {
-	listFiles(path: string, recursive?: boolean): Promise<FileInfo[]>;
-	readFile(path: string): Promise<{ content: string; info: FileInfo }>;
-	writeFile(path: string, content: string): Promise<FileInfo>;
+	listFiles: (dirPath: string, recursive?: boolean) => Promise<FileInfo[]>;
+	readFile: (filePath: string) => Promise<{ content: string; info: FileInfo }>;
+	writeFile: (filePath: string, content: string) => Promise<void>;
+	deleteFile: (filePath: string) => Promise<void>;
+	createDirectory: (dirPath: string) => Promise<void>;
+	deleteDirectory: (dirPath: string) => Promise<void>;
+	moveFile: (oldPath: string, newPath: string) => Promise<void>;
+	copyFile: (sourcePath: string, destPath: string) => Promise<void>;
+	exists: (path: string) => Promise<boolean>;
+	isDirectory: (path: string) => Promise<boolean>;
+	getFileInfo: (path: string) => Promise<FileInfo>;
 	watchChanges?(
 		path: string,
 		callback: (changes: FileInfo[]) => void,
@@ -23,7 +30,7 @@ export interface BaseFileSystem {
 // Web-specific interface
 export interface WebFileSystem extends BaseFileSystem {
 	folderHandle: FileSystemDirectoryHandle | null;
-	openFolder(): Promise<FileSystemDirectoryHandle>;
+	openFolder: () => Promise<FileSystemDirectoryHandle>;
 }
 
 // Electron-specific interface

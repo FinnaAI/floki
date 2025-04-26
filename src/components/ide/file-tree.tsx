@@ -32,8 +32,6 @@ interface DirectoryNodeProps {
 	onFileClick: (file: FileInfo) => void;
 	onToggleSelect: (file: FileInfo) => void;
 	isSelected: (file: FileInfo) => boolean;
-	isFolderExpanded: (path: string) => boolean;
-	toggleFolderExpanded: (path: string) => void;
 }
 
 export function FileTree() {
@@ -60,8 +58,6 @@ export function FileTree() {
 	const {
 		searchQuery,
 		filteredFiles,
-		isFolderExpanded,
-		toggleFolderExpanded,
 		setSearchQuery,
 		setFilteredFiles,
 		clearSearch,
@@ -116,8 +112,6 @@ export function FileTree() {
 						onFileClick={handleFileClick}
 						onToggleSelect={toggleFileSelection}
 						isSelected={isFileSelected}
-						isFolderExpanded={isFolderExpanded}
-						toggleFolderExpanded={toggleFolderExpanded}
 					/>
 				)}
 			</div>
@@ -128,7 +122,7 @@ export function FileTree() {
 // Memoized loading state component
 const LoadingState = memo(() => (
 	<div className="flex h-24 items-center justify-center">
-		<div className="mr-2 h-6 w-6 animate-spin rounded-full border-blue-500 border-b-2" />
+		<div className="mr-2 h-6 w-6 animate-spin rounded-full border-neutral-500 border-b-2" />
 		Loading files...
 	</div>
 ));
@@ -194,7 +188,9 @@ const EmptyState = memo(
 					<Button
 						type="button"
 						onClick={onClearSearch}
-						className="mt-2 text-blue-500 hover:text-blue-600 dark:text-blue-400 dark:hover:text-blue-300"
+						className="mt-2"
+						variant="outline"
+						size="sm"
 					>
 						Clear search
 					</Button>
@@ -226,8 +222,6 @@ const FileList = memo(
 		onFileClick,
 		onToggleSelect,
 		isSelected,
-		isFolderExpanded,
-		toggleFolderExpanded,
 	}: {
 		files: FileInfo[];
 		selectedFile: FileInfo | null;
@@ -238,8 +232,6 @@ const FileList = memo(
 		onFileClick: (file: FileInfo) => void;
 		onToggleSelect: (file: FileInfo) => void;
 		isSelected: (file: FileInfo) => boolean;
-		isFolderExpanded: (path: string) => boolean;
-		toggleFolderExpanded: (path: string) => void;
 	}) => {
 		const { rootDirs, rootFiles } = useMemo(() => {
 			const rootDirs: FileInfo[] = [];
@@ -287,8 +279,6 @@ const FileList = memo(
 						onFileClick={onFileClick}
 						onToggleSelect={onToggleSelect}
 						isSelected={isSelected}
-						isFolderExpanded={isFolderExpanded}
-						toggleFolderExpanded={toggleFolderExpanded}
 					/>
 				))}
 				{/* Files */}
@@ -323,24 +313,14 @@ const DirectoryNode = memo(
 		onFileClick,
 		onToggleSelect,
 		isSelected,
-		isFolderExpanded,
-		toggleFolderExpanded,
 	}: DirectoryNodeProps) => {
 		const [loading, setLoading] = useState(false);
-		const isExpanded = isFolderExpanded(directory.path);
-		console.log(`DirectoryNode ${directory.path} isExpanded: ${isExpanded}`);
+		const [isExpanded, setIsExpanded] = useState(false);
 
 		const handleToggle = useCallback(
 			async (e?: SyntheticEvent) => {
 				e?.stopPropagation();
-				const fileTreeStore = useFileTreeStore.getState();
-				const isCurrentlyExpanded = fileTreeStore.isFolderExpanded(
-					directory.path,
-				);
-				console.log(
-					`handleToggle called for ${directory.path}, current isExpanded: ${isCurrentlyExpanded}`,
-				);
-				if (!isCurrentlyExpanded) {
+				if (!isExpanded) {
 					setLoading(true);
 					try {
 						const fileStore = useFileStore.getState();
@@ -349,9 +329,9 @@ const DirectoryNode = memo(
 						setLoading(false);
 					}
 				}
-				toggleFolderExpanded(directory.path);
+				setIsExpanded(!isExpanded);
 			},
-			[directory.path, toggleFolderExpanded],
+			[directory.path, isExpanded],
 		);
 
 		// Get direct child dirs and files
@@ -401,12 +381,12 @@ const DirectoryNode = memo(
 		}, [allFiles, directory.path, isIgnored, showIgnoredFiles]);
 
 		return (
-			<div style={{ paddingLeft: level > 0 ? `${level * 16}px` : "0" }}>
+			<div style={{ paddingLeft: level > 0 ? `${level * 4}px` : "0" }}>
 				<button
 					type="button"
 					className={cn(
-						"group flex w-full items-center gap-1 rounded-md px-2 py-1.5 hover:bg-gray-100 dark:hover:bg-gray-800/50",
-						isExpanded && "bg-white dark:bg-gray-800/30",
+						"group flex w-full items-center gap-1 rounded-md px-2 py-1.5",
+						isExpanded ? "bg-neutral-700/50" : "hover:!bg-neutral-700/50",
 					)}
 					onClick={(e) => {
 						e.stopPropagation();
@@ -418,7 +398,7 @@ const DirectoryNode = memo(
 						}
 					}}
 				>
-					<div className="h-4 w-4 p-0 hover:bg-transparent">
+					<div className="h-4 w-4 p-0">
 						<ChevronRight
 							className={cn(
 								"h-3 w-3 transition-transform",
@@ -452,8 +432,6 @@ const DirectoryNode = memo(
 								onFileClick={onFileClick}
 								onToggleSelect={onToggleSelect}
 								isSelected={isSelected}
-								isFolderExpanded={isFolderExpanded}
-								toggleFolderExpanded={toggleFolderExpanded}
 							/>
 						))}
 						{childFiles.map((file) => (
@@ -514,13 +492,11 @@ const FileNode = memo(
 				variant="ghost"
 				size="sm"
 				className={cn(
-					"group flex w-full items-center gap-1 rounded-md px-2 py-1.5 hover:bg-red-800/50",
-					isSelected
-						? "bg-neutral-600"
-						: "hover:bg-gray-100 dark:hover:bg-gray-800/50",
+					"group flex w-full items-center gap-1 rounded-md px-2 py-1.5",
+					isSelected ? "bg-neutral-700/50" : "hover:!bg-neutral-700/50",
 					isIgnored ? "opacity-50" : "",
 					fileStatus
-						? `border-l-2 border-${statusColor.replace("bg-", "")}`
+						? `border-l-1 border-${statusColor.replace("bg-", "")}`
 						: "",
 				)}
 				onClick={onSelect}

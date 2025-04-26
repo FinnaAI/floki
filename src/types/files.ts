@@ -3,20 +3,17 @@ export interface FileInfo {
 	path: string;
 	isDirectory: boolean;
 	size: number;
-	lastModified: Date | string;
-	handle?: FileSystemFileHandle | FileSystemDirectoryHandle;
-	deleted?: boolean;
-	isLarge?: boolean;
+	lastModified: Date;
 }
 
 export interface FileDiff {
 	oldContent: string;
 	newContent: string;
-	hunks: {
+	hunks: Array<{
 		oldStart: number;
 		oldLines: number;
 		newStart: number;
 		newLines: number;
 		lines: string[];
-	}[];
+	}>;
 }

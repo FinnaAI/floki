@@ -112,7 +112,7 @@ class WebFileSystem implements IWebFileSystem {
 		return { content, info };
 	}
 
-	async writeFile(path: string, content: string): Promise<FileInfo> {
+	async writeFile(path: string, content: string): Promise<void> {
 		if (!this.folderHandle) {
 			throw new Error("No folder selected");
 		}
@@ -141,16 +141,6 @@ class WebFileSystem implements IWebFileSystem {
 		const writable = await fileHandle.createWritable();
 		await writable.write(content);
 		await writable.close();
-
-		const file = await fileHandle.getFile();
-		return {
-			name: file.name,
-			path,
-			isDirectory: false,
-			size: file.size,
-			lastModified: new Date(file.lastModified),
-			handle: fileHandle,
-		};
 	}
 
 	watchChanges(
@@ -183,6 +173,144 @@ class WebFileSystem implements IWebFileSystem {
 				messageId: `cleanup_${messageId}`,
 			});
 		};
+	}
+
+	async deleteFile(filePath: string): Promise<void> {
+		if (!this.folderHandle) {
+			throw new Error("No folder selected");
+		}
+		// Navigate to the parent directory
+		const parts = filePath.split("/").filter(Boolean);
+		const fileName = parts.pop();
+		if (!fileName) throw new Error("Invalid file path");
+
+		let currentHandle = this.folderHandle;
+		for (const part of parts) {
+			currentHandle = await currentHandle.getDirectoryHandle(part);
+		}
+		await currentHandle.removeEntry(fileName);
+	}
+
+	async createDirectory(dirPath: string): Promise<void> {
+		if (!this.folderHandle) {
+			throw new Error("No folder selected");
+		}
+		const parts = dirPath.split("/").filter(Boolean);
+		let currentHandle = this.folderHandle;
+		for (const part of parts) {
+			currentHandle = await currentHandle.getDirectoryHandle(part, {
+				create: true,
+			});
+		}
+	}
+
+	async deleteDirectory(dirPath: string): Promise<void> {
+		if (!this.folderHandle) {
+			throw new Error("No folder selected");
+		}
+		// Navigate to the parent directory
+		const parts = dirPath.split("/").filter(Boolean);
+		const dirName = parts.pop();
+		if (!dirName) throw new Error("Invalid directory path");
+
+		let currentHandle = this.folderHandle;
+		for (const part of parts) {
+			currentHandle = await currentHandle.getDirectoryHandle(part);
+		}
+		await currentHandle.removeEntry(dirName, { recursive: true });
+	}
+
+	async moveFile(oldPath: string, newPath: string): Promise<void> {
+		// Copy the file to new location and delete the old one
+		await this.copyFile(oldPath, newPath);
+		await this.deleteFile(oldPath);
+	}
+
+	async copyFile(sourcePath: string, destPath: string): Promise<void> {
+		const { content } = await this.readFile(sourcePath);
+		await this.writeFile(destPath, content);
+	}
+
+	async exists(path: string): Promise<boolean> {
+		try {
+			await this.getFileInfo(path);
+			return true;
+		} catch {
+			return false;
+		}
+	}
+
+	async isDirectory(path: string): Promise<boolean> {
+		try {
+			const info = await this.getFileInfo(path);
+			return info.isDirectory;
+		} catch {
+			return false;
+		}
+	}
+
+	async getFileInfo(path: string): Promise<FileInfo> {
+		if (!this.folderHandle) {
+			throw new Error("No folder selected");
+		}
+
+		const parts = path.split("/").filter(Boolean);
+		let currentHandle: FileSystemDirectoryHandle | FileSystemFileHandle =
+			this.folderHandle;
+		const name =
+			parts.length > 0 && parts[parts.length - 1]
+				? parts[parts.length - 1]
+				: this.folderHandle.name;
+
+		try {
+			// Navigate through directories
+			for (let i = 0; i < parts.length - 1; i++) {
+				const part = parts[i];
+				if (!part) continue;
+				currentHandle = await (
+					currentHandle as FileSystemDirectoryHandle
+				).getDirectoryHandle(part);
+			}
+
+			// Handle the last part if it exists
+			if (parts.length > 0) {
+				const lastPart = parts[parts.length - 1];
+				if (!lastPart) throw new Error("Invalid path");
+
+				try {
+					currentHandle = await (
+						currentHandle as FileSystemDirectoryHandle
+					).getFileHandle(lastPart);
+				} catch {
+					currentHandle = await (
+						currentHandle as FileSystemDirectoryHandle
+					).getDirectoryHandle(lastPart);
+				}
+			}
+
+			if (currentHandle.kind === "file") {
+				const file = await (currentHandle as FileSystemFileHandle).getFile();
+				return {
+					name: name || "",
+					path,
+					isDirectory: false,
+					size: file.size,
+					lastModified: new Date(file.lastModified),
+					handle: currentHandle,
+				};
+			}
+
+			return {
+				name: name || "",
+				path,
+				isDirectory: true,
+				size: 0,
+				lastModified: new Date(),
+				handle: currentHandle,
+			};
+		} catch (error) {
+			throw new Error(`File or directory not found: ${path}`);
+		}
 	}
 }
 
@@ -220,101 +348,53 @@ class ElectronFileSystem implements IElectronFileSystem {
 	}
 
 	async listFiles(dirPath: string, recursive = false): Promise<FileInfo[]> {
-		return new Promise((resolve, reject) => {
-			if (!this.worker) {
-				reject(new Error("Worker not initialized"));
-				return;
-			}
-
-			const messageId = Math.random().toString(36).substring(7);
-			const handler = (event: MessageEvent) => {
-				const { type, files, error, messageId: responseId } = event.data;
-				if (responseId !== messageId) return;
-
-				this.worker?.removeEventListener("message", handler);
-
-				if (type === "error") {
-					reject(new Error(error));
-				} else if (type === "fileList") {
-					resolve(files);
-				}
-			};
-
-			this.worker.addEventListener("message", handler);
-			this.worker.postMessage({
-				type: "listFiles",
-				path: dirPath,
-				recursive,
-				messageId,
-			});
+		return this.sendWorkerMessage<FileInfo[]>("listFiles", {
+			path: dirPath,
+			recursive,
 		});
 	}
 
 	async readFile(path: string): Promise<{ content: string; info: FileInfo }> {
-		return new Promise((resolve, reject) => {
-			if (!this.worker) {
-				reject(new Error("Worker not initialized"));
-				return;
-			}
-
-			const messageId = Math.random().toString(36).substring(7);
-			const handler = (event: MessageEvent) => {
-				const {
-					type,
-					content,
-					info,
-					error,
-					messageId: responseId,
-				} = event.data;
-				if (responseId !== messageId) return;
-
-				this.worker?.removeEventListener("message", handler);
-
-				if (type === "error") {
-					reject(new Error(error));
-				} else if (type === "fileContent") {
-					resolve({ content, info });
-				}
-			};
-
-			this.worker.addEventListener("message", handler);
-			this.worker.postMessage({
-				type: "readFile",
-				path,
-				messageId,
-			});
-		});
+		return this.sendWorkerMessage<{ content: string; info: FileInfo }>(
+			"readFile",
+			{ path },
+		);
 	}
 
-	async writeFile(path: string, content: string): Promise<FileInfo> {
-		return new Promise((resolve, reject) => {
-			if (!this.worker) {
-				reject(new Error("Worker not initialized"));
-				return;
-			}
+	async writeFile(path: string, content: string): Promise<void> {
+		return this.sendWorkerMessage<void>("writeFile", { path, content });
+	}
 
-			const messageId = Math.random().toString(36).substring(7);
-			const handler = (event: MessageEvent) => {
-				const { type, info, error, messageId: responseId } = event.data;
-				if (responseId !== messageId) return;
+	async deleteFile(filePath: string): Promise<void> {
+		return this.sendWorkerMessage<void>("deleteFile", { path: filePath });
+	}
 
-				this.worker?.removeEventListener("message", handler);
+	async createDirectory(dirPath: string): Promise<void> {
+		return this.sendWorkerMessage<void>("createDirectory", { path: dirPath });
+	}
 
-				if (type === "error") {
-					reject(new Error(error));
-				} else if (type === "fileWritten") {
-					resolve(info);
-				}
-			};
+	async deleteDirectory(dirPath: string): Promise<void> {
+		return this.sendWorkerMessage<void>("deleteDirectory", { path: dirPath });
+	}
 
-			this.worker.addEventListener("message", handler);
-			this.worker.postMessage({
-				type: "writeFile",
-				path,
-				content,
-				messageId,
-			});
-		});
+	async moveFile(oldPath: string, newPath: string): Promise<void> {
+		return this.sendWorkerMessage<void>("moveFile", { oldPath, newPath });
+	}
+
+	async copyFile(sourcePath: string, destPath: string): Promise<void> {
+		return this.sendWorkerMessage<void>("copyFile", { sourcePath, destPath });
+	}
+
+	async exists(path: string): Promise<boolean> {
+		return this.sendWorkerMessage<boolean>("exists", { path });
+	}
+
+	async isDirectory(path: string): Promise<boolean> {
+		return this.sendWorkerMessage<boolean>("isDirectory", { path });
+	}
+
+	async getFileInfo(path: string): Promise<FileInfo> {
+		return this.sendWorkerMessage<FileInfo>("getFileInfo", { path });
 	}
 
 	watchChanges(
@@ -347,6 +427,44 @@ class ElectronFileSystem implements IElectronFileSystem {
 				messageId: `cleanup_${messageId}`,
 			});
 		};
+	}
+
+	private sendWorkerMessage<T>(
+		type: string,
+		data: Record<string, unknown>,
+	): Promise<T> {
+		return new Promise((resolve, reject) => {
+			if (!this.worker) {
+				reject(new Error("Worker not initialized"));
+				return;
+			}
+
+			const messageId = Math.random().toString(36).substring(7);
+			const handler = (event: MessageEvent) => {
+				const {
+					type: responseType,
+					data: responseData,
+					error,
+					messageId: responseId,
+				} = event.data;
+				if (responseId !== messageId) return;
+
+				this.worker?.removeEventListener("message", handler);
+
+				if (responseType === "error") {
+					reject(new Error(error));
+				} else {
+					resolve(responseData as T);
+				}
+			};
+
+			this.worker.addEventListener("message", handler);
+			this.worker.postMessage({
+				type,
+				...data,
+				messageId,
+			});
+		});
 	}
 }
 
