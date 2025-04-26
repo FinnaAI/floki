@@ -23,7 +23,7 @@ export default function Header({ className }: { className?: string }) {
 	return (
 		<motion.div
 			className={cn(
-				`fixed top-0 right-0 left-0 z-50 border-border/40 border-b bg-background/80 px-4 py-4 backdrop-blur-md ${className}`,
+				`fixed top-0 right-0 left-0 z-50 border-border/40 border-b px-4 py-4 backdrop-blur-md ${className}`,
 			)}
 			initial={{ y: -100, opacity: 0 }}
 			animate={{ y: 0, opacity: 1 }}
@@ -36,7 +36,7 @@ export default function Header({ className }: { className?: string }) {
 					transition={{ type: "spring", stiffness: 400, damping: 10 }}
 				>
 					<Link href="/" className="flex items-center gap-2">
-						<div className="flex h-10 w-10 items-center justify-center rounded-lg bg-gradient-to-br from-chart-1 to-orange-800">
+						<div className="flex h-10 w-10 items-center justify-center rounded-lg bg-gradient-to-br from-orange-500 to-orange-800">
 							<Image src="/fehu-white.svg" alt="logo" width={20} height={20} />
 						</div>
 						<span className="font-bold text-xl">Floki</span>

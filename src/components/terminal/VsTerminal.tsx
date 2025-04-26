@@ -8,6 +8,8 @@ import {
 	DialogHeader,
 	DialogTitle,
 } from "@/components/ui/dialog";
+import { useFileStore } from "@/store/file-store";
+import { useIDEStore } from "@/store/ide-store";
 import { AlertCircle, Power, RotateCw } from "lucide-react";
 import dynamic from "next/dynamic";
 import { useCallback, useEffect, useState } from "react";
@@ -43,12 +45,14 @@ interface TerminalComponentProps {
 	onShellChange: (shellName: string) => void;
 }
 
-export function VsTerminal({ autoConnect = false }: { autoConnect?: boolean }) {
+export function VsTerminal() {
 	const [showEnvModal, setShowEnvModal] = useState(false);
 	const [error, setError] = useState<string | null>(null);
 	const [loading, setLoading] = useState(true);
 	const [connected, setConnected] = useState(false);
 	const [shell, setShell] = useState("");
+	const activeProject = useIDEStore((state) => state.activeProject);
+	const currentPath = useFileStore((state) => state.currentPath);
 
 	// Memoized callbacks to prevent prop identity changes that cause repeated effect runs in TerminalComponent
 	const handleConnected = useCallback(
@@ -68,14 +72,17 @@ export function VsTerminal({ autoConnect = false }: { autoConnect?: boolean }) {
 		[],
 	);
 
+	// Auto-connect effect
 	useEffect(() => {
-		if (autoConnect) {
-			if (typeof window !== "undefined") {
-				const event = new CustomEvent("terminal:connect");
-				window.dispatchEvent(event);
-			}
-		}
-	}, [autoConnect]);
+		if (!connected || !activeProject || !currentPath) return;
+
+		// If we have an active project and current path, change to that directory
+		const fullPath = `${activeProject}${currentPath}`;
+		const cdCommand = new CustomEvent("terminal:input", {
+			detail: { command: `cd "${fullPath}"\r` },
+		});
+		window.dispatchEvent(cdCommand);
+	}, [connected, activeProject, currentPath]);
 
 	return (
 		<div className="flex h-full w-full flex-col overflow-hidden">
@@ -175,7 +182,7 @@ export function VsTerminal({ autoConnect = false }: { autoConnect?: boolean }) {
 				</div>
 
 				{/* Terminal Content Area */}
-				<div className="flex-1 overflow-hidden bg-[#1e1e1e] p-1">
+				<div className="w-full flex-1 overflow-hidden bg-[#1e1e1e] p-1">
 					<DynamicTerminal
 						onConnected={handleConnected}
 						onLoading={handleLoading}
@@ -196,7 +203,11 @@ export function VsTerminal({ autoConnect = false }: { autoConnect?: boolean }) {
 							Define environment variables for your terminal session.
 						</p>
 					</DialogHeader>
-					<EnvVarForm onClose={() => setShowEnvModal(false)} />
+					<EnvVarForm
+						envVars={[]}
+						onAddEnvVar={() => {}}
+						onClose={() => setShowEnvModal(false)}
+					/>
 					<DialogFooter>
 						<Button
 							variant="outline"

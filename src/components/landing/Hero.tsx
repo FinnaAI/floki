@@ -7,7 +7,7 @@ import {
 import * as motion from "motion/react-client";
 import Image from "next/image";
 import Link from "next/link";
-import { Tweet } from "react-tweet";
+import { ClientTweet } from "./client-tweet";
 
 export function Hero() {
 	const codingAgents = [
@@ -74,8 +74,8 @@ export function Hero() {
 						transition={{ duration: 0.5 }}
 						className="mb-12 py-12 text-center"
 					>
-						<h1 className="mb-6 bg-gradient-to-br from-foreground to-foreground/70 bg-clip-text font-bold text-5xl text-transparent md:text-6xl">
-							<span className="block text-chart-1">Floki</span> AI-First
+						<h1 className="mb-6 font-bold text-5xl md:text-6xl">
+							<span className="block text-orange-500">Floki</span> AI-First
 							Development Environment
 						</h1>
 
@@ -189,8 +189,7 @@ export function Hero() {
 					</motion.div>
 
 					<div className="flex w-full justify-center">
-						{/* <ClientTweetCard id="1914701646099021969" /> */}
-						<Tweet id="1914701646099021969" />
+						<ClientTweet id="1914701646099021969" />
 					</div>
 				</div>
 			</div>

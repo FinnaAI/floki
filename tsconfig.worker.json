@@ -1,5 +1,6 @@
 {
 	"extends": "./tsconfig.json",
+	"module": "ESNext",
 	"compilerOptions": {
 		"outDir": "./public/workers",
 		"module": "ES6",

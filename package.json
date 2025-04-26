@@ -9,7 +9,7 @@
 	"main": "dist/main/main.js",
 	"scripts": {
 		"dev": "next dev",
-		"build": "next build",
+		"build": "pnpm build:workers && next build",
 		"start": "next start",
 		"postinstall": "#prisma generate",
 		"typecheck": "tsc --noEmit",
@@ -23,8 +23,9 @@
 		"electron:dev": "cross-env NODE_ENV=development concurrently -n \"NEXT,ELECTRON\" -c \"yellow,blue\" --kill-others \"pnpm dev\" \"wait-on tcp:3000 && tsc -p electron-builder.tsconfig.json && electron .\"",
 		"electron:build": "pnpm rebuild node-pty && tsc -p electron-builder.tsconfig.json && next build && electron-builder",
 		"electron:compile": "tsc -p electron-builder.tsconfig.json",
-		"build:workers": "tsc -p tsconfig.worker.json",
-		"watch:workers": "tsc -p tsconfig.worker.json --watch"
+		"build:workers": "tsc -p tsconfig.worker.json && echo 'Workers built successfully!'",
+		"watch:workers": "tsc -p tsconfig.worker.json --watch",
+		"watch:workers:dev": "tsc -p tsconfig.worker.json --watch --noEmitOnError > /dev/null 2>&1"
 	},
 	"dependencies": {
 		"@monaco-editor/react": "^4.7.0",

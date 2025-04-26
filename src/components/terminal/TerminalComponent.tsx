@@ -54,6 +54,9 @@ export function TerminalComponent({
 				terminalRef.current.style.minHeight = "100px";
 				terminalRef.current.style.width = "100%";
 				terminalRef.current.style.height = "100%";
+				terminalRef.current.style.display = "flex";
+				terminalRef.current.style.flexDirection = "column";
+				terminalRef.current.style.overflow = "hidden";
 
 				// Dynamically import modules on client side
 				const { Terminal } = await import("xterm");
@@ -125,33 +128,33 @@ export function TerminalComponent({
 				try {
 					// Open terminal in the container
 					term.open(terminalRef.current);
-					term.writeln(
-						"Terminal initialized. Click Connect to start a session.",
-					);
+					term.writeln("Terminal initialized. Connecting to session...");
+
+					// Wait for the terminal to fully render and handle initial fit
+					await new Promise((resolve) => setTimeout(resolve, 100));
+
+					if (fitAddon.current && mounted) {
+						try {
+							fitAddon.current.fit();
+							console.log("Initial terminal fit:", term.cols, "x", term.rows);
+						} catch (fitErr) {
+							console.error("Error fitting terminal:", fitErr);
+							term.resize(80, 24);
+						}
+					}
+
+					// Auto-connect after initialization
+					setTimeout(() => {
+						if (mounted) {
+							const event = new CustomEvent("terminal:connect");
+							window.dispatchEvent(event);
+						}
+					}, 100);
 				} catch (openErr) {
 					console.error("Error opening terminal:", openErr);
 					onError(`Error opening terminal: ${(openErr as Error).message}`);
 					onLoading(false);
 					return;
-				}
-
-				// Wait for the terminal to fully render
-				await new Promise((resolve) => setTimeout(resolve, 100));
-
-				if (fitAddon.current && mounted) {
-					try {
-						fitAddon.current.fit();
-						console.log(
-							"Terminal fitted to container:",
-							term.cols,
-							"x",
-							term.rows,
-						);
-					} catch (fitErr) {
-						console.error("Error fitting terminal:", fitErr);
-						// Fallback to default size if fit fails
-						term.resize(80, 24);
-					}
 				}
 
 				// Get shell info
@@ -427,6 +430,23 @@ export function TerminalComponent({
 		window.addEventListener("terminal:kill", killTerminal);
 		window.addEventListener("terminal:clear", clearTerminal);
 
+		// Handle terminal:input event for sending commands
+		const handleTerminalInput = (event: CustomEvent) => {
+			if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+				wsRef.current.send(
+					JSON.stringify({
+						type: "input",
+						data: event.detail.command,
+					}),
+				);
+			}
+		};
+
+		window.addEventListener(
+			"terminal:input",
+			handleTerminalInput as EventListener,
+		);
+
 		// Handle window resize
 		const handleResize = () => {
 			if (
@@ -480,6 +500,10 @@ export function TerminalComponent({
 			window.removeEventListener("terminal:connect", connectTerminal);
 			window.removeEventListener("terminal:kill", killTerminal);
 			window.removeEventListener("terminal:clear", clearTerminal);
+			window.removeEventListener(
+				"terminal:input",
+				handleTerminalInput as EventListener,
+			);
 			window.removeEventListener("resize", handleResize);
 
 			// Close WebSocket connection
@@ -500,8 +524,8 @@ export function TerminalComponent({
 	return (
 		<div
 			ref={terminalRef}
-			className="h-full w-full"
-			style={{ padding: "2px" }}
+			className="flex h-full w-full flex-col overflow-hidden"
+			style={{ padding: "2px", position: "relative" }}
 		/>
 	);
 }
