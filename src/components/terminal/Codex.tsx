@@ -9,9 +9,8 @@ import {
 	DialogTitle,
 } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Power, Trash } from "lucide-react";
+import { Power, Square, Trash } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
-
 import { CommandInput } from "./CommandInput";
 import { EnvVarForm } from "./EnvVarForm";
 import { MessageList } from "./MessageList";
@@ -30,14 +29,14 @@ export function Codex() {
 	const [showEnvModal, setShowEnvModal] = useState(false);
 	const scrollAreaRef = useRef<HTMLDivElement>(null);
 	const [codexMode, setCodexMode] = useState(true);
-
+	const [showSettings, setShowSettings] = useState(false);
 	// Custom hooks
 	const { connected, messages, sendCommand, connectWebSocket, clearMessages } =
 		useWebSocket();
 
 	const { envVars, addEnvVar, applyEnvVars } = useEnvVars();
 
-	// Auto-scroll to bottom of chat
+	// Auto-scroll to bottom of chat when messages change
 	useEffect(() => {
 		if (scrollAreaRef.current) {
 			const scrollContainer = scrollAreaRef.current.querySelector(
@@ -47,7 +46,7 @@ export function Codex() {
 				scrollContainer.scrollTop = scrollContainer.scrollHeight;
 			}
 		}
-	}, []); // No dependencies needed as we're just setting up scroll behavior
+	}, [messages]); // Update scroll when messages change
 
 	// Handle sending command
 	const handleSendCommand = (e: React.KeyboardEvent) => {
@@ -110,10 +109,10 @@ export function Codex() {
 	};
 
 	return (
-		<div className="flex h-full w-full flex-col overflow-hidden">
-			<div className="overflow-hiddenrounded-md relative flex h-full w-full flex-col bg-background shadow-sm">
-				{/* Header - fixed to top */}
-				<div className="sticky top-0 z-10 flex items-center justify-end border-t">
+		<div className="flex h-[calc(100vh-100px)] flex-col">
+			<div className="flex h-full w-full flex-col justify-between overflow-hidden bg-background">
+				{/* Header */}
+				<div className="flex items-center justify-end border-t">
 					<div className="flex items-center gap-1">
 						<Button
 							variant={connected ? "secondary" : "default"}
@@ -145,9 +144,9 @@ export function Codex() {
 					</ScrollArea>
 				</div>
 
-				{/* Input area - fixed to bottom */}
-				<div className="sticky bottom-0 border-border border-t p-2">
-					<div className="flex gap-1">
+				{/* Input area - always at the bottom */}
+				<div className="flex shrink-0 border-border border-t bg-background p-2">
+					<div className="flex h-full w-full gap-1">
 						<CommandInput
 							value={input}
 							onChange={(e) => setInput(e.target.value)}
@@ -155,14 +154,14 @@ export function Codex() {
 							connected={connected}
 							placeholder="Enter message for Codex..."
 						/>
-						{/* <Button
-              variant="destructive"
-              size="icon"
-              onClick={() => sendCommand("STOP_COMMAND", true)}
-              title="Stop running command (Ctrl+C)"
-            >
-              <Square size={14} />
-            </Button> */}
+						<Button
+							variant="destructive"
+							size="icon"
+							onClick={() => sendCommand("STOP_COMMAND", true)}
+							title="Stop running command (Ctrl+C)"
+						>
+							<Square size={14} />
+						</Button>
 					</div>
 				</div>
 			</div>

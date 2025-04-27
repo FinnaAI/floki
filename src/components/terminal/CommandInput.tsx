@@ -2,6 +2,7 @@
 
 import { Command } from "lucide-react";
 import type { ChangeEvent, KeyboardEvent } from "react";
+import { Input } from "../ui/input";
 
 interface CommandInputProps {
 	value: string;
@@ -20,17 +21,17 @@ export function CommandInput({
 }: CommandInputProps) {
 	return (
 		<div className="relative flex-1">
-			<div className="absolute top-2.5 left-2.5 text-muted-foreground">
-				<Command size={16} />
+			<div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-2.5">
+				<Command size={16} className="text-muted-foreground" />
 			</div>
-			<input
+			<Input
 				type="text"
 				value={value}
 				onChange={onChange}
 				onKeyDown={onKeyDown}
 				disabled={!connected}
 				placeholder={connected ? placeholder : "Disconnected..."}
-				className="flex h-9 w-full rounded-md border border-input bg-background px-9 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+				className="w-full pl-9"
 			/>
 		</div>
 	);

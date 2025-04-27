@@ -1,6 +1,6 @@
 "use client";
 
-import { FileViewer } from "@/components/file-monaco-editor";
+import { FileMonacoEditor as FileViewer } from "@/components/editor/file-monaco-editor";
 import { TiptapViewer } from "@/components/tiptap-editor";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useDebounce } from "@/hooks/use-debounce";

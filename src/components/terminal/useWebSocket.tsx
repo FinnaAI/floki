@@ -160,6 +160,9 @@ export function useWebSocket() {
 					ws.current.readyState === WebSocket.OPEN &&
 					activeSessionId.current
 				) {
+					console.log(
+						`Sending stop command for session: ${activeSessionId.current}`,
+					);
 					ws.current.send(
 						JSON.stringify({
 							type: "stop",
@@ -171,12 +174,24 @@ export function useWebSocket() {
 						content: "Stopping command...",
 						timestamp: new Date(),
 					});
+				} else {
+					console.log(
+						`Cannot stop: ${!ws.current ? "No WebSocket" : !activeSessionId.current ? "No active session" : "WebSocket not open"}`,
+					);
+					addMessage({
+						type: "system",
+						content: "No active command to stop",
+						timestamp: new Date(),
+					});
 				}
 				return;
 			}
 
 			// Process regular command through WebSocket
 			if (ws.current && ws.current.readyState === WebSocket.OPEN) {
+				// When starting a new command, clear the current session ID
+				activeSessionId.current = null;
+
 				// Special handling for codex command
 				if (command.startsWith("codex ")) {
 					const commandObj = {
@@ -250,6 +265,9 @@ export function useWebSocket() {
 				console.error("Error closing existing connection:", e);
 			}
 		}
+
+		// Reset session ID on new connection
+		activeSessionId.current = null;
 
 		// Get host from window
 		const host = window.location.hostname;
@@ -377,6 +395,9 @@ export function useWebSocket() {
 					} else if (data.type === "exit") {
 						// Do nothing when command exits
 						// Reset active session ID when command completes
+						console.log(
+							`Command exited, clearing session ID: ${activeSessionId.current}`,
+						);
 						activeSessionId.current = null;
 					} else if (data.type === "error") {
 						addMessage({
@@ -387,7 +408,7 @@ export function useWebSocket() {
 					} else if (data.type === "session") {
 						// Store the session ID for command control
 						activeSessionId.current = data.sessionId;
-						console.log(`Active session ID: ${data.sessionId}`);
+						console.log(`Set active session ID: ${data.sessionId}`);
 					} else if (data.type === "system") {
 						// System messages from the server
 						addMessage({

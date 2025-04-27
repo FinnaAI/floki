@@ -25,6 +25,7 @@ import {
 	Folder,
 	FolderOpen,
 	FolderPlus,
+	Pencil,
 	Search,
 	X,
 } from "lucide-react";
@@ -874,20 +875,21 @@ const DirectoryNode = memo(
 						<FilePlus className="mr-2 h-4 w-4" />
 						New File
 					</ContextMenuItem>
-					<ContextMenuSeparator />
-					<ContextMenuItem
-						variant="destructive"
-						onClick={() => useFileStore.getState().deleteFile(directory.path)}
-					>
-						Delete Folder
-					</ContextMenuItem>
 					<ContextMenuItem
 						onClick={() => {
 							setRenameTarget(directory.path);
 							setDraftName(directory.name);
 						}}
 					>
+						<Pencil className="mr-2 h-4 w-4" />
 						Rename
+					</ContextMenuItem>
+					<ContextMenuSeparator />
+					<ContextMenuItem
+						variant="destructive"
+						onClick={() => useFileStore.getState().deleteFile(directory.path)}
+					>
+						Delete Folder
 					</ContextMenuItem>
 				</ContextMenuContent>
 			</ContextMenu>
@@ -999,10 +1001,6 @@ const FileNode = memo(
 				</ContextMenuTrigger>
 				<ContextMenuContent>
 					<ContextMenuItem onClick={onSelect}>Open File</ContextMenuItem>
-					<ContextMenuSeparator />
-					<ContextMenuItem variant="destructive" onClick={onDelete}>
-						Delete File
-					</ContextMenuItem>
 					<ContextMenuItem
 						onClick={() => {
 							setRenameTarget(file.path);
@@ -1010,6 +1008,10 @@ const FileNode = memo(
 						}}
 					>
 						Rename
+					</ContextMenuItem>
+					<ContextMenuSeparator />
+					<ContextMenuItem variant="destructive" onClick={onDelete}>
+						Delete File
 					</ContextMenuItem>
 				</ContextMenuContent>
 			</ContextMenu>

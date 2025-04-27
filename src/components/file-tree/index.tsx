@@ -1,0 +1,10 @@
+export { FileTree } from "./file-tree";
+export { DirectoryNode } from "./components/directory-node";
+export { FileNode } from "./components/file-node";
+export { FileList } from "./components/file-list";
+export { InlineEditor } from "./components/inline-editor";
+export { LoadingState } from "./components/loading-state";
+export { PermissionRequest } from "./components/permission-request";
+export { ErrorState } from "./components/error-state";
+export { EmptyState } from "./components/empty-state";
+export { useFileTree } from "./hooks/use-file-tree";
