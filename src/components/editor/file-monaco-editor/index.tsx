@@ -1,11 +1,13 @@
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { FileText } from "lucide-react";
 import dynamic from "next/dynamic";
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
+import { toast } from "sonner";
 import { EditorToolbar } from "./components/editor-toolbar";
 import { ImageViewer } from "./components/image-viewer";
 import { MonacoWrapper } from "./components/monaco-wrapper";
 import { useDiff } from "./hooks/use-diff";
+import { useFileOperations } from "./hooks/use-file-operations";
 import type { FileDiff, FileInfo } from "./types";
 // Import util for language detection
 import { getLanguageFromFileName } from "./utils/language-map";
@@ -59,6 +61,44 @@ export const FileMonacoEditor = React.memo(
 		const [isEditing, setIsEditing] = useState(false);
 		const [availableThemes, setAvailableThemes] = useState<string[]>([]);
 		const [editorTheme, setEditorTheme] = useState("OneDark-Pro");
+		const [localContent, setLocalContent] = useState(fileContent);
+		const [isDirty, setIsDirty] = useState(false);
+
+		const { saveFile } = useFileOperations({
+			onError: (error) => {
+				toast.error(`Failed to save file: ${error.message}`);
+			},
+			currentPath,
+		});
+
+		// Update local content when file content changes
+		useEffect(() => {
+			setLocalContent(fileContent);
+			setIsDirty(false);
+		}, [fileContent]);
+
+		// Handle content changes
+		const handleContentChange = useCallback((newContent: string) => {
+			setLocalContent(newContent);
+			setIsDirty(true);
+			onFileContentChange?.(newContent);
+		}, [onFileContentChange]);
+
+		// Handle edit/save toggle
+		const handleEditToggle = useCallback(async () => {
+			if (isEditing && isDirty && selectedFile) {
+				try {
+					await saveFile(selectedFile.path, localContent || "");
+					toast.success('File saved successfully');
+					setIsDirty(false);
+				} catch (error) {
+					// Error is handled by the hook
+					console.error('Failed to save file:', error);
+					return; // Don't exit edit mode if save failed
+				}
+			}
+			setIsEditing(!isEditing);
+		}, [isEditing, isDirty, selectedFile, localContent, saveFile]);
 
 		// Load available themes
 		useEffect(() => {
@@ -95,14 +135,6 @@ export const FileMonacoEditor = React.memo(
 		const isImageFile = selectedFile?.name.match(
 			/\.(png|jpe?g|gif|svg|ico|webp|bmp|tiff)$/i,
 		);
-
-		// Toggle editing mode
-		const handleEditToggle = () => {
-			if (isEditing && onFileContentChange) {
-				onFileContentChange(fileContent || "");
-			}
-			setIsEditing(!isEditing);
-		};
 
 		// hush unused loading prop for now
 		void loading;
@@ -147,13 +179,14 @@ export const FileMonacoEditor = React.memo(
 					currentTheme={editorTheme}
 					availableThemes={availableThemes}
 					onThemeChange={setEditorTheme}
+					isDirty={isDirty}
 				/>
 
 				<ScrollArea className="h-full">
 					<div className="w-full max-w-full">
 						{/* Show Git Diff if available */}
 						{showDiff &&
-							fileContent &&
+							localContent &&
 							fileStatus === "modified" &&
 							!isImageFile && (
 								<div className="mb-6 overflow-hidden">
@@ -168,7 +201,7 @@ export const FileMonacoEditor = React.memo(
 									<div className="w-full overflow-hidden">
 										<DiffEditor
 											original={diffData?.oldContent || initialFileDiff?.oldContent || ""}
-											modified={diffData?.newContent || initialFileDiff?.newContent || fileContent || ""}
+											modified={diffData?.newContent || initialFileDiff?.newContent || localContent || ""}
 											language={getLanguageFromFileName(selectedFile.name)}
 											theme={editorTheme}
 											beforeMount={(monaco) => {
@@ -206,16 +239,16 @@ export const FileMonacoEditor = React.memo(
 								<div className="flex justify-center">
 									<ImageViewer
 										selectedFile={selectedFile}
-										fileContent={fileContent}
+										fileContent={localContent}
 									/>
 								</div>
 							) : (
 								<MonacoWrapper
 									selectedFile={selectedFile}
-									fileContent={fileContent}
+									fileContent={localContent}
 									isEditing={isEditing}
 									theme={editorTheme}
-									onContentChange={onFileContentChange}
+									onContentChange={handleContentChange}
 								/>
 							)}
 						</div>

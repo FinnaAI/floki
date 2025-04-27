@@ -22,6 +22,7 @@ interface EditorToolbarProps {
 	currentTheme: string;
 	availableThemes: string[];
 	onThemeChange: (theme: string) => void;
+	isDirty: boolean;
 }
 
 export const EditorToolbar = React.memo(
@@ -36,6 +37,7 @@ export const EditorToolbar = React.memo(
 		currentTheme,
 		availableThemes,
 		onThemeChange,
+		isDirty,
 	}: EditorToolbarProps) => {
 		// Parse file path for breadcrumb
 		const pathParts = useMemo(() => {
@@ -61,9 +63,15 @@ export const EditorToolbar = React.memo(
 					<button
 						type="button"
 						onClick={onEditToggle}
-						className="mr-2 rounded-md px-2 py-1 text-muted-foreground text-xs"
+						className={`mr-2 rounded-md px-2 py-1 text-xs ${
+							isEditing
+								? isDirty
+									? "bg-blue-500 text-white hover:bg-blue-600"
+									: "text-muted-foreground"
+								: "text-muted-foreground"
+						}`}
 					>
-						{isEditing ? "Save" : "Edit"}
+						{isEditing ? (isDirty ? "Save*" : "Save") : "Edit"}
 					</button>
 
 					{/* File path breadcrumb */}
