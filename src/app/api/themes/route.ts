@@ -9,12 +9,9 @@ export async function GET() {
 
 		// Filter for .json files and remove the extension
 		const themes = files
-			.filter((file) => file.endsWith(".json"))
+			.filter((file) => file.endsWith(".json") && file !== "themelist.json")
 			.map((file) => file.replace(".json", ""))
-			// Sort alphabetically but keep OneDark-Pro variants at the top
-			.sort((a, b) => {
-				return a.localeCompare(b);
-			});
+			.sort((a, b) => a.localeCompare(b));
 
 		return NextResponse.json({ themes });
 	} catch (error) {

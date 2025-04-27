@@ -30,7 +30,7 @@ async function getGitStatus(dirPath: string): Promise<GitStatus> {
 		// Get status using porcelain format for stable parsing
 		const { stdout: output } = await execa(
 			"git",
-			["status", "--porcelain=v2"],
+			["status", "--porcelain"], // Use v1 format which is simpler to parse
 			{ cwd: gitRoot },
 		);
 
@@ -52,13 +52,13 @@ async function getGitStatus(dirPath: string): Promise<GitStatus> {
 			const parts = filePath.split(" -> ");
 			const actualPath = parts.length > 1 && parts[1] ? parts[1] : filePath;
 
-			if (status.includes("M") && actualPath) {
+			if (status === "M " || status === " M" || status === "MM") {
 				result.modified.push(actualPath);
-			} else if (status.includes("A") && actualPath) {
+			} else if (status === "A " || status === "AM") {
 				result.added.push(actualPath);
-			} else if (status.includes("D") && actualPath) {
+			} else if (status === "D " || status === " D") {
 				result.deleted.push(actualPath);
-			} else if (status === "??" && actualPath) {
+			} else if (status === "??") {
 				result.untracked.push(actualPath);
 			}
 		}

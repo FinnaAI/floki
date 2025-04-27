@@ -40,7 +40,7 @@ describe("Git Status API", () => {
 		// Mock git status output
 		vi.mocked(execSync).mockReturnValue(
 			Buffer.from(
-				` M modified.txt\nA  added.txt\n?? untracked.txt\n D deleted.txt`,
+				" M modified.txt\nA  added.txt\n?? untracked.txt\n D deleted.txt",
 				"utf-8",
 			),
 		);
