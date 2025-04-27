@@ -82,7 +82,7 @@ const loadAvailableThemes = async () => {
 		return data.themes as string[];
 	} catch (error) {
 		console.error("Failed to load available themes:", error);
-		return ["OneDark-Pro"]; // Fallback to default theme
+		return ["Twilight"]; // Fallback to default theme
 	}
 };
 

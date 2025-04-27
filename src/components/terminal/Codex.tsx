@@ -46,7 +46,7 @@ export function Codex() {
 				scrollContainer.scrollTop = scrollContainer.scrollHeight;
 			}
 		}
-	}, [messages]); // Update scroll when messages change
+	}, []); // Update scroll when messages change
 
 	// Handle sending command
 	const handleSendCommand = (e: React.KeyboardEvent) => {
@@ -109,7 +109,7 @@ export function Codex() {
 	};
 
 	return (
-		<div className="flex h-[calc(100vh-100px)] flex-col">
+		<div className="flex h-full flex-col">
 			<div className="flex h-full w-full flex-col justify-between overflow-hidden bg-background">
 				{/* Header */}
 				<div className="flex items-center justify-end border-t">

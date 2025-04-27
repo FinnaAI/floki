@@ -7,9 +7,21 @@ export interface Project {
 	name: string;
 }
 
+interface MonacoThemeData {
+	base: string;
+	inherit: boolean;
+	rules: Array<{
+		token: string;
+		foreground?: string;
+		background?: string;
+		fontStyle?: string;
+	}>;
+	colors: Record<string, string>;
+}
+
 interface MonacoTheme {
 	id: string;
-	data: any;
+	data: MonacoThemeData;
 	isLoaded: boolean;
 }
 
@@ -33,7 +45,7 @@ interface IDEState {
 	toggleTerminal: () => void;
 	toggleCodex: () => void;
 	setEditorTheme: (theme: string) => void;
-	addMonacoTheme: (themeName: string, themeData: any) => void;
+	addMonacoTheme: (themeName: string, themeData: MonacoThemeData) => void;
 	isThemeLoaded: (themeName: string) => boolean;
 	addProject: (projectPath: string) => void;
 	removeProject: (projectPath: string) => void;
@@ -51,7 +63,7 @@ export const useIDEStore = create<IDEState>()(
 			showFileContent: true,
 			showTerminal: true,
 			showCodex: true,
-			editorTheme: "Twilight", // Default theme
+			editorTheme: "Twilight", // Default theme matching FileMonacoEditor
 			monacoThemes: {},
 			projects: [],
 			activeProject: null,
@@ -70,21 +82,24 @@ export const useIDEStore = create<IDEState>()(
 
 			setEditorTheme: (theme: string) => set({ editorTheme: theme }),
 
-			addMonacoTheme: (themeName: string, themeData: any) =>
-				set((state) => ({
-					monacoThemes: {
-						...state.monacoThemes,
-						[themeName]: {
-							id: themeName.toLowerCase().replace(/[^a-z0-9]/g, "-"),
-							data: themeData,
-							isLoaded: true,
+			addMonacoTheme: (themeName: string, themeData: MonacoThemeData) =>
+				set((state) => {
+					const themeId = themeName.toLowerCase().replace(/[^a-z0-9]/g, "-");
+					return {
+						monacoThemes: {
+							...state.monacoThemes,
+							[themeName]: {
+								id: themeId,
+								data: themeData,
+								isLoaded: true,
+							},
 						},
-					},
-				})),
+					};
+				}),
 
 			isThemeLoaded: (themeName: string) => {
 				const theme = get().monacoThemes[themeName];
-				return theme?.isLoaded || false;
+				return Boolean(theme?.isLoaded);
 			},
 
 			addProject: (projectPath: string) =>

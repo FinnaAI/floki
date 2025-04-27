@@ -333,7 +333,6 @@ export function TerminalComponent({
 				}
 
 				dataListenerRef.current = terminalInstance.current.onData((data) => {
-					terminalInstance.current?.write(data);
 					if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
 						wsRef.current.send(
 							JSON.stringify({

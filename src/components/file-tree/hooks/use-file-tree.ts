@@ -1,7 +1,7 @@
 import { useFileStore } from "@/store/file-store";
 import { useFileTreeStore } from "@/store/file-tree-store";
 import { useGitStatusStore } from "@/store/git-status-store";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 export function useFileTree() {
 	// State for creation dialogs
@@ -35,6 +35,21 @@ export function useFileTree() {
 		useFileTreeStore();
 
 	const { isIgnored, getFileStatus, showIgnoredFiles } = useGitStatusStore();
+
+	// Sync files with file-tree-store and handle filtering
+	useEffect(() => {
+		if (!searchQuery) {
+			useFileTreeStore.getState().setFilteredFiles(files);
+			return;
+		}
+
+		const lowercaseQuery = searchQuery.toLowerCase();
+		const filtered = files.filter((file) =>
+			file.name.toLowerCase().includes(lowercaseQuery),
+		);
+
+		useFileTreeStore.getState().setFilteredFiles(filtered);
+	}, [files, searchQuery]);
 
 	// Handle creation of new items
 	const handleCreateItem = (

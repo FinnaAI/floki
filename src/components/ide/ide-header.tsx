@@ -73,7 +73,7 @@ export function IDEHeader({ children }: IDEHeaderProps) {
 	);
 
 	return (
-		<div className="flex flex-col">
+		<div className="flex h-full flex-col overflow-hidden">
 			<div className="flex items-center justify-between px-4 py-2">
 				<div className="flex items-center gap-1">
 					<Button variant="ghost" size="icon">
@@ -145,7 +145,9 @@ export function IDEHeader({ children }: IDEHeaderProps) {
 				</div>
 			</div>
 			{projects.length > 0 ? (
-				<div className="flex-1">{activeProject && children}</div>
+				<div className="flex-1 overflow-hidden">
+					{activeProject && children}
+				</div>
 			) : (
 				<div className="flex h-[calc(100vh-4rem)] items-center justify-center">
 					<div className="text-center">

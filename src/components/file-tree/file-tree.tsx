@@ -38,6 +38,7 @@ export function FileTree() {
 		setRenameTarget,
 		setDraftName,
 		deleteFile,
+		filteredFiles,
 	} = useFileTree();
 
 	return (
@@ -77,7 +78,7 @@ export function FileTree() {
 						<EmptyState searchQuery={searchQuery} onClearSearch={clearSearch} />
 					) : (
 						<FileList
-							files={files}
+							files={filteredFiles}
 							selectedFile={selectedFile}
 							currentPath={currentPath}
 							isIgnored={isIgnored}

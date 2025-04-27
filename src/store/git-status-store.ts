@@ -22,6 +22,7 @@ export interface GitStatus {
 	added: string[];
 	untracked: string[];
 	deleted: string[];
+	ignored: string[];
 	error?: string;
 }
 
@@ -73,11 +74,7 @@ const initWorker = (get: () => GitStatusState) => {
 				if (e.filename?.includes("git-status.worker.js")) {
 					console.error("[GitStore] Worker failed to load:", e.message);
 					// Only set up fallback if worker fails to load
-					setTimeout(() => {
-						if (!gitStatusWorker) {
-							get().setupFallbackPolling();
-						}
-					}, 1000);
+					get().setupFallbackPolling();
 				}
 			},
 			{ once: true },
@@ -86,12 +83,8 @@ const initWorker = (get: () => GitStatusState) => {
 		return gitStatusWorker;
 	} catch (error) {
 		console.error("[GitStore] Failed to initialize worker:", error);
-		// Only set up fallback if worker init fails
-		setTimeout(() => {
-			if (!gitStatusWorker) {
-				get().setupFallbackPolling();
-			}
-		}, 1000);
+		// Set up fallback polling immediately if worker init fails
+		get().setupFallbackPolling();
 		return null;
 	}
 };
@@ -117,11 +110,8 @@ export const useGitStatusStore = create<GitStatusState>((set, get) => {
 				} else if (type === "gitStatusError") {
 					console.error("[GitStore] Worker reported error:", error);
 					set({ error, gitStatus: null });
-
 					// If we get a worker error, fall back to polling
-					setTimeout(() => {
-						get().setupFallbackPolling();
-					}, 1000);
+					get().setupFallbackPolling();
 				}
 			};
 
@@ -137,15 +127,11 @@ export const useGitStatusStore = create<GitStatusState>((set, get) => {
 				});
 
 				// If worker fails, fall back to polling
-				setTimeout(() => {
-					get().setupFallbackPolling();
-				}, 1000);
+				get().setupFallbackPolling();
 			};
 		} else {
 			// If worker initialization fails, set up polling as fallback
-			setTimeout(() => {
-				get().setupFallbackPolling();
-			}, 1000);
+			get().setupFallbackPolling();
 		}
 	}
 
@@ -179,6 +165,9 @@ export const useGitStatusStore = create<GitStatusState>((set, get) => {
 					gitStatusWorker.postMessage({ type: "stopPolling" });
 					set({ isPolling: false, gitStatus: null });
 				}
+			} else if (newShowStatus) {
+				// No worker available, fall back to polling
+				get().setupFallbackPolling();
 			}
 		},
 
@@ -381,7 +370,7 @@ export const useGitStatusStore = create<GitStatusState>((set, get) => {
 				const errorMessage =
 					error instanceof Error ? error.message : "Failed to fetch git status";
 				set({
-					error: errorMessage,
+					error: "Failed to fetch git status",
 					gitStatus: null,
 				});
 				return null;

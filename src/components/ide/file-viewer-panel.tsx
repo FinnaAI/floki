@@ -1,11 +1,13 @@
 "use client";
 
 import { FileMonacoEditor as FileViewer } from "@/components/editor/file-monaco-editor";
+// import { FileViewer } from "@/components/old/file-monaco-editor";
 import { TiptapViewer } from "@/components/tiptap-editor";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useDebounce } from "@/hooks/use-debounce";
 import { createFileSystem } from "@/lib/file-system";
 import { useFileStore } from "@/store/file-store";
+import { useGitStatusStore } from "@/store/git-status-store";
 import type { FileDiff, FileInfo } from "@/types/files";
 import React, { useState, useMemo, useCallback, useEffect } from "react";
 import { toast } from "sonner";
@@ -23,6 +25,13 @@ interface ViewComponentProps {
 	loading: boolean;
 	error: string | null;
 	onFileContentChange?: (newContent: string) => void;
+	gitStatus?: {
+		modified: string[];
+		added: string[];
+		untracked: string[];
+		deleted: string[];
+		ignored: string[];
+	} | null;
 }
 
 // Standard code view component
@@ -34,6 +43,7 @@ const CodeView = React.memo<ViewComponentProps>(
 		loading,
 		error,
 		onFileContentChange,
+		gitStatus,
 	}) => {
 		return (
 			<FileViewer
@@ -43,6 +53,7 @@ const CodeView = React.memo<ViewComponentProps>(
 				loading={loading}
 				error={error}
 				onFileContentChange={onFileContentChange}
+				gitStatus={gitStatus}
 			/>
 		);
 	},
@@ -152,6 +163,7 @@ const FileViewerContent = React.memo<FileViewerContentProps>(
 		activeView,
 		onViewChange,
 		onFileContentChange,
+		gitStatus,
 	}) => {
 		// Determine which view types are available for the current file
 		const getAvailableViews = useCallback((): ViewType[] => {
@@ -172,7 +184,7 @@ const FileViewerContent = React.memo<FileViewerContentProps>(
 			}
 
 			return availableViews;
-		}, [selectedFile?.name]); // Only depend on the file name, not the whole object
+		}, [selectedFile]);
 
 		const availableViews = useMemo(
 			() => getAvailableViews(),
@@ -198,14 +210,16 @@ const FileViewerContent = React.memo<FileViewerContentProps>(
 				loading,
 				error,
 				onFileContentChange,
+				gitStatus,
 			}),
 			[
-				selectedFile?.path,
+				selectedFile,
 				fileContent,
 				fileDiff,
 				loading,
 				error,
 				onFileContentChange,
+				gitStatus,
 			],
 		);
 
@@ -255,6 +269,7 @@ FileViewerContent.displayName = "FileViewerContent";
 export const FileViewerPanel: React.FC = () => {
 	const { selectedFile, fileContent, fileDiff, fileLoading, error } =
 		useFileStore();
+	const { gitStatus } = useGitStatusStore();
 	const [activeView, setActiveView] = useState<ViewType>("code");
 
 	// Memoize the onViewChange callback
@@ -304,8 +319,9 @@ export const FileViewerPanel: React.FC = () => {
 			fileDiff,
 			loading: fileLoading,
 			error,
+			gitStatus,
 		}),
-		[selectedFile?.path, fileContent, fileDiff, fileLoading, error],
+		[selectedFile, fileContent, fileDiff, fileLoading, error, gitStatus],
 	);
 
 	// No file selected - doesn't depend on loading state

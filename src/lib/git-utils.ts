@@ -18,7 +18,7 @@ export async function findGitRoot(startPath: string): Promise<string | null> {
 	try {
 		console.log(`Checking for .git in: ${dirPath}`);
 		// Try going up the directory tree to find .git
-		let currentPath = path.dirname(dirPath); // Start with the directory containing the file
+		let currentPath = dirPath; // Start with the given directory
 		while (currentPath) {
 			try {
 				const gitDir = path.join(currentPath, ".git");
