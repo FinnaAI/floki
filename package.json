@@ -53,6 +53,7 @@
 		"@tiptap/pm": "^2.11.7",
 		"@tiptap/react": "^2.11.7",
 		"@tiptap/starter-kit": "^2.11.7",
+		"ai": "^4.3.10",
 		"bufferutil": "^4.0.9",
 		"class-variance-authority": "^0.7.1",
 		"clsx": "^2.1.1",
