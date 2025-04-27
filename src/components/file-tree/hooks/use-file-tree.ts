@@ -29,6 +29,8 @@ export function useFileTree() {
 		createFile,
 		createFolder,
 		deleteFile,
+		selectedFiles,
+		clearSelectedFiles,
 	} = useFileStore();
 
 	const { searchQuery, filteredFiles, setSearchQuery, clearSearch } =
@@ -122,5 +124,7 @@ export function useFileTree() {
 		setRenameTarget,
 		setDraftName,
 		deleteFile,
+		selectedFiles,
+		clearSelectedFiles,
 	};
 }
