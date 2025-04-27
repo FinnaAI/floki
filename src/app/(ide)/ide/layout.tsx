@@ -22,7 +22,7 @@ export default function IDELayout({
 	terminal: ReactNode;
 	agent: ReactNode;
 }) {
-	const { filteredFiles, searchQuery, loadDirectory } = useFileStore.getState();
+	const { loadDirectory } = useFileStore.getState();
 	const { projects, activeProject, removeProject, setActiveProject } =
 		useIDEStore.getState();
 
@@ -51,34 +51,59 @@ export default function IDELayout({
 	);
 
 	return (
-		<div className="flex h-screen flex-col">
+		<div className="flex h-full flex-col overflow-hidden">
 			<IDEHeader>
-				<ResizablePanelGroup direction="horizontal" className="flex-1">
-					<ResizablePanel defaultSize={20} minSize={10} collapsible>
+				<ResizablePanelGroup
+					direction="horizontal"
+					className="h-full overflow-hidden"
+				>
+					<ResizablePanel
+						defaultSize={20}
+						minSize={10}
+						collapsible
+						className="overflow-hidden"
+					>
 						{sidebar}
 					</ResizablePanel>
 					<ResizableHandle />
-					<ResizablePanel defaultSize={60} minSize={30}>
-						<ResizablePanelGroup direction="vertical">
-							<ResizablePanel defaultSize={70} minSize={30}>
+					<ResizablePanel
+						defaultSize={60}
+						minSize={30}
+						className="overflow-hidden"
+					>
+						<ResizablePanelGroup
+							direction="vertical"
+							className="h-full overflow-hidden"
+						>
+							<ResizablePanel
+								defaultSize={70}
+								minSize={30}
+								className="overflow-hidden"
+							>
 								{editor}
 							</ResizablePanel>
 							<ResizableHandle />
-							<ResizablePanel defaultSize={30} minSize={10} collapsible>
+							<ResizablePanel
+								defaultSize={30}
+								minSize={10}
+								collapsible
+								className="overflow-hidden"
+							>
 								{terminal}
 							</ResizablePanel>
 						</ResizablePanelGroup>
 					</ResizablePanel>
 					<ResizableHandle />
-					<ResizablePanel defaultSize={20} minSize={10} collapsible>
+					<ResizablePanel
+						defaultSize={20}
+						minSize={10}
+						collapsible
+						className="overflow-hidden"
+					>
 						{agent}
 					</ResizablePanel>
 				</ResizablePanelGroup>
 			</IDEHeader>
-			<div className="border-slate-200 border-t bg-slate-100 px-4 text-slate-500 text-xs dark:border-slate-700 dark:bg-slate-800 dark:text-slate-400">
-				{filteredFiles.length} items
-				{searchQuery && " (filtered)"}
-			</div>
 		</div>
 	);
 }
