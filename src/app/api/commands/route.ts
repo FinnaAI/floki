@@ -144,20 +144,32 @@ if (!global.wsServerInitialized) {
 							const query = data.command.substring(6).trim();
 
 							// Use quiet mode to get JSON output
-							const proc = spawn("codex", ["-q", query], {
-								cwd: process.cwd(),
-								env: {
-									...process.env,
-									NODE_NO_READLINE: "1",
+							const proc = spawn(
+								"codex",
+								["--approval-mode", "full-auto", "-q", query],
+								{
+									cwd: process.cwd(),
+									env: {
+										...process.env,
+										NODE_NO_READLINE: "1",
+									},
+									shell: true,
 								},
-								shell: true,
-							});
+							);
 
 							// Store process
 							processes.set(sessionId, proc);
 
 							// Set a property on the process to identify it as a Codex process
 							(proc as unknown as { isCodex: boolean }).isCodex = true;
+
+							// Send session ID to client
+							ws.send(
+								JSON.stringify({
+									type: "session",
+									sessionId: sessionId,
+								}),
+							);
 
 							// Stream stdout
 							proc.stdout.on("data", (rawData) => {
@@ -342,21 +354,22 @@ if (!global.wsServerInitialized) {
 					}
 				} else if (data.type === "stop") {
 					// Handle stop command - terminate the process
-					const proc = processes.get(sessionId);
+					const targetSessionId = data.sessionId || sessionId;
+					const proc = processes.get(targetSessionId);
 					if (proc) {
-						console.log(`Stopping process for session: ${sessionId}`);
+						console.log(`Stopping process for session: ${targetSessionId}`);
 						try {
 							// Try graceful termination first (SIGTERM)
 							proc.kill("SIGTERM");
 
 							// For safety, set a timeout to force kill if needed
 							setTimeout(() => {
-								if (processes.has(sessionId)) {
+								if (processes.has(targetSessionId)) {
 									console.log(
-										`Force killing process for session: ${sessionId}`,
+										`Force killing process for session: ${targetSessionId}`,
 									);
 									proc.kill("SIGKILL");
-									processes.delete(sessionId);
+									processes.delete(targetSessionId);
 								}
 							}, 1000);
 
@@ -376,6 +389,15 @@ if (!global.wsServerInitialized) {
 								}),
 							);
 						}
+					} else {
+						// Process not found for the given session ID
+						console.log(`No process found for session: ${targetSessionId}`);
+						ws.send(
+							JSON.stringify({
+								type: "system",
+								data: "No active command to terminate",
+							}),
+						);
 					}
 				}
 			} catch (error: unknown) {

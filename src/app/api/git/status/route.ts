@@ -1,6 +1,5 @@
-import { promises as fs } from "fs";
-import { execSync } from "node:child_process";
-import path from "path";
+import { findGitRoot } from "@/lib/git-utils";
+import { execa } from "execa";
 import { type NextRequest, NextResponse } from "next/server";
 
 interface GitStatus {
@@ -9,47 +8,6 @@ interface GitStatus {
 	untracked: string[];
 	deleted: string[];
 	error?: string;
-}
-
-async function findGitRoot(startPath: string): Promise<string | null> {
-	// Handle empty path
-	if (!startPath) return null;
-
-	// Try extracting just the real filesystem path
-	let dirPath = startPath;
-
-	// For paths from a file handle, they often have a format like "folder (path/to/folder)"
-	const folderNameMatch = startPath.match(/^(.*?)\s+\((.*?)\)$/);
-	if (folderNameMatch?.[2]) {
-		dirPath = folderNameMatch[2]; // Use the actual path in parentheses
-		console.log(`Extracted path from folder handle: ${dirPath}`);
-	}
-
-	try {
-		console.log(`Checking for .git in: ${dirPath}`);
-		// Try going up the directory tree to find .git
-		let currentPath = dirPath;
-		while (currentPath) {
-			try {
-				const gitDir = path.join(currentPath, ".git");
-				const stats = await fs.stat(gitDir);
-				if (stats.isDirectory()) {
-					// console.log(`Found git repository at: ${currentPath}`);
-					return currentPath;
-				}
-			} catch (e) {
-				// .git does not exist at this level, continue up
-			}
-
-			const parentPath = path.dirname(currentPath);
-			if (parentPath === currentPath) break; // We've reached the root
-			currentPath = parentPath;
-		}
-	} catch (error) {
-		console.error(`Error finding git root: ${error}`);
-	}
-
-	return null;
 }
 
 async function getGitStatus(dirPath: string): Promise<GitStatus> {
@@ -70,10 +28,11 @@ async function getGitStatus(dirPath: string): Promise<GitStatus> {
 		// console.log(`Using git repository at: ${gitRoot}`);
 
 		// Get status using porcelain format for stable parsing
-		const output = execSync("git status --porcelain", {
-			cwd: gitRoot,
-			encoding: "utf-8",
-		});
+		const { stdout: output } = await execa(
+			"git",
+			["status", "--porcelain=v2"],
+			{ cwd: gitRoot },
+		);
 
 		const result: GitStatus = {
 			modified: [],

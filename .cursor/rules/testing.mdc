@@ -1,0 +1,258 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+# Testing Guidelines
+
+## Project Setup
+- Using Vitest with React Testing Library
+- Tests are co-located with components in `__tests__` directories
+- Test setup in [src/test/setup.ts](mdc:src/test/setup.ts)
+- Configuration in [vitest.config.ts](mdc:vitest.config.ts)
+
+## File Structure
+```
+src/
+  __tests__/                    # Global test files
+  components/
+    ComponentName/
+      __tests__/               # Component tests
+      component-name.test.tsx
+      component-name.mock.ts   # Component-specific mocks
+  store/
+    __tests__/                # Store tests
+  interfaces/
+    __tests__/               # Interface tests
+  app/
+    api/
+      route-name/
+        __tests__/          # API route tests
+```
+
+## Naming Conventions
+- Test files: `*.test.tsx` or `*.test.ts`
+- Test directories: `__tests__`
+- Mock files: `*.mock.ts`
+- Test utils: `test-*.ts`
+
+## Test Categories
+
+### 1. Component Tests
+Use [src/test-utils.tsx](mdc:src/test-utils.tsx) for rendering:
+```typescript
+import { render, screen } from '@/test-utils'
+import { mockWebSocket } from '@/test/mocks/websocket.mock'
+
+describe('Component', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('renders and handles user interaction', async () => {
+    const onAction = vi.fn()
+    render(<Component onAction={onAction} />)
+    
+    const button = screen.getByRole('button')
+    expect(button).toBeInTheDocument()
+    
+    await userEvent.click(button)
+    expect(onAction).toHaveBeenCalledTimes(1)
+  })
+
+  it('handles async operations', async () => {
+    const mockData = { id: 1, name: 'Test' }
+    mockFetch.mockResolvedValueOnce({ json: () => mockData })
+    
+    render(<Component />)
+    
+    expect(screen.getByRole('progressbar')).toBeInTheDocument()
+    expect(await screen.findByText(mockData.name)).toBeInTheDocument()
+  })
+})
+```
+
+### 2. Store Tests
+Example testing a Zustand store:
+```typescript
+import { createStore } from '@/store/store-name'
+import { act } from '@testing-library/react'
+
+describe('Store', () => {
+  let store: ReturnType<typeof createStore>
+
+  beforeEach(() => {
+    store = createStore()
+  })
+
+  it('updates state correctly', () => {
+    act(() => {
+      store.getState().updateValue('new value')
+    })
+    
+    expect(store.getState().value).toBe('new value')
+  })
+})
+```
+
+### 3. API Route Tests
+```typescript
+import { GET, POST } from '@/app/api/route-name/route'
+import { mockRequest } from '@/test/mocks/request.mock'
+
+describe('API Route', () => {
+  it('handles GET requests', async () => {
+    const req = mockRequest.get('/api/route-name')
+    const res = await GET(req)
+    
+    expect(res.status).toBe(200)
+    expect(await res.json()).toEqual(expect.objectContaining({
+      success: true
+    }))
+  })
+})
+```
+
+### 4. WebSocket Tests
+```typescript
+import { useWebSocket } from '@/hooks/use-websocket'
+import { mockWebSocket } from '@/test/mocks/websocket.mock'
+
+describe('WebSocket', () => {
+  beforeEach(() => {
+    mockWebSocket.reset()
+  })
+
+  it('handles messages', async () => {
+    const { result } = renderHook(() => useWebSocket())
+    
+    await mockWebSocket.connect()
+    await mockWebSocket.serverSend({ type: 'test', data: 'message' })
+    
+    expect(mockWebSocket).toHaveReceivedMessage({
+      type: 'test',
+      data: 'message'
+    })
+  })
+})
+```
+
+### 5. Worker Tests
+```typescript
+import { mockWorker } from '@/test/mocks/worker.mock'
+
+describe('Worker', () => {
+  beforeEach(() => {
+    mockWorker.reset()
+  })
+
+  it('processes messages', async () => {
+    const worker = new Worker('file-system.worker.ts')
+    await worker.postMessage({ type: 'TEST' })
+    
+    expect(mockWorker.messages).toContainEqual({
+      type: 'TEST_RESPONSE',
+      data: expect.any(Object)
+    })
+  })
+})
+```
+
+## Coverage Requirements
+```typescript
+// vitest.config.ts
+coverage: {
+  provider: "v8",
+  reporter: ["text", "json", "html"],
+  include: ["src/**/*.{ts,tsx}"],
+  exclude: [
+    "src/**/*.d.ts",
+    "src/**/*.test.{ts,tsx}",
+    "src/**/*.spec.{ts,tsx}",
+    "src/**/*.mock.{ts,tsx}",
+  ],
+}
+```
+
+## Commands
+```bash
+pnpm test              # Run tests in watch mode
+pnpm test:ui          # Run with UI
+pnpm test:coverage    # Run with coverage
+pnpm test:e2e         # Run E2E tests
+```
+
+## Best Practices
+1. Test user interactions, not implementation
+   ```typescript
+   // ❌ Don't test implementation details
+   expect(component.state.isLoading).toBe(true)
+   
+   // ✅ Test what the user sees
+   expect(screen.getByRole('progressbar')).toBeInTheDocument()
+   ```
+
+2. Use proper role queries (getByRole) over test IDs
+   ```typescript
+   // ❌ Avoid test IDs when possible
+   getByTestId('submit-button')
+   
+   // ✅ Use roles and accessible queries
+   getByRole('button', { name: /submit/i })
+   ```
+
+3. Assert error states and loading states
+   ```typescript
+   it('handles errors', async () => {
+     mockFetch.mockRejectedValueOnce(new Error('Failed'))
+     render(<Component />)
+     
+     expect(await screen.findByText(/error/i)).toBeInTheDocument()
+   })
+   ```
+
+4. Mock at the lowest possible level
+   ```typescript
+   // ❌ Don't mock entire modules if not needed
+   vi.mock('@/utils')
+   
+   // ✅ Mock specific functions
+   vi.spyOn(utils, 'specificFunction')
+   ```
+
+5. Keep tests isolated
+   ```typescript
+   // ❌ Don't share mutable state
+   let shared = { value: 0 }
+   
+   // ✅ Reset state in beforeEach
+   beforeEach(() => {
+     vi.clearAllMocks()
+     mockState.reset()
+   })
+   ```
+
+6. Type-check your test code
+   ```typescript
+   // ✅ Use proper types
+   const mockData: UserData = {
+     id: 1,
+     name: 'Test'
+   }
+   ```
+
+7. Use proper assertions
+   ```typescript
+   // ❌ Avoid boolean assertions
+   expect(result).toBe(true)
+   
+   // ✅ Use specific matchers
+   expect(array).toHaveLength(2)
+   expect(object).toMatchObject({ key: 'value' })
+   ```
+
+## File Naming
+- Test files: `component-name.test.tsx`
+- Test directories: `__tests__`
+- Test utils: Prefix with `test-` (e.g., `test-utils.tsx`)
+- Mock files: Suffix with `.mock.ts` (e.g., `websocket.mock.ts`)

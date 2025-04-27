@@ -1,6 +1,7 @@
 import { promises as fs } from "fs";
-import { execSync } from "node:child_process";
 import path from "path";
+import { findGitRoot, parseDiffOutput } from "@/lib/git-utils";
+import { execa } from "execa";
 import { type NextRequest, NextResponse } from "next/server";
 
 interface GitDiff {
@@ -14,47 +15,6 @@ interface GitDiff {
 		lines: string[];
 	}[];
 	error?: string;
-}
-
-async function findGitRoot(startPath: string): Promise<string | null> {
-	// Handle empty path
-	if (!startPath) return null;
-
-	// Try extracting just the real filesystem path
-	let dirPath = startPath;
-
-	// For paths from a file handle, they often have a format like "folder (path/to/folder)"
-	const folderNameMatch = startPath.match(/^(.*?)\s+\((.*?)\)$/);
-	if (folderNameMatch?.[2]) {
-		dirPath = folderNameMatch[2]; // Use the actual path in parentheses
-		console.log(`Extracted path from folder handle: ${dirPath}`);
-	}
-
-	try {
-		console.log(`Checking for .git in: ${dirPath}`);
-		// Try going up the directory tree to find .git
-		let currentPath = path.dirname(dirPath); // Start with the directory containing the file
-		while (currentPath) {
-			try {
-				const gitDir = path.join(currentPath, ".git");
-				const stats = await fs.stat(gitDir);
-				if (stats.isDirectory()) {
-					// console.log(`Found git repository at: ${currentPath}`);
-					return currentPath;
-				}
-			} catch (e) {
-				// .git does not exist at this level, continue up
-			}
-
-			const parentPath = path.dirname(currentPath);
-			if (parentPath === currentPath) break; // We've reached the root
-			currentPath = parentPath;
-		}
-	} catch (error) {
-		console.error(`Error finding git root: ${error}`);
-	}
-
-	return null;
 }
 
 async function getGitDiff(
@@ -85,10 +45,12 @@ async function getGitDiff(
 		let oldContent = "";
 		try {
 			// Try with relative path first (preferred)
-			oldContent = execSync(`git show HEAD:"${relativeFilePath}"`, {
-				cwd: gitRoot,
-				encoding: "utf-8",
-			}).toString();
+			const { stdout } = await execa(
+				"git",
+				["show", `HEAD:${relativeFilePath}`],
+				{ cwd: gitRoot },
+			);
+			oldContent = stdout;
 			console.log("Successfully got old content from git using relative path");
 		} catch (error) {
 			console.error("Error getting old content with relative path:", error);
@@ -97,10 +59,10 @@ async function getGitDiff(
 			try {
 				const filename = path.basename(filePath);
 				console.log(`Trying again with just filename: ${filename}`);
-				oldContent = execSync(`git show HEAD:"${filename}"`, {
+				const { stdout } = await execa("git", ["show", `HEAD:${filename}`], {
 					cwd: gitRoot,
-					encoding: "utf-8",
-				}).toString();
+				});
+				oldContent = stdout;
 				console.log("Successfully got old content using filename only");
 			} catch (innerError) {
 				console.error(
@@ -135,10 +97,12 @@ async function getGitDiff(
 		// Get the diff output
 		let diffOutput = "";
 		try {
-			diffOutput = execSync(`git diff HEAD -- "${relativeFilePath}"`, {
-				cwd: gitRoot,
-				encoding: "utf-8",
-			}).toString();
+			const { stdout } = await execa(
+				"git",
+				["diff", "HEAD", "--", relativeFilePath],
+				{ cwd: gitRoot },
+			);
+			diffOutput = stdout;
 			console.log(
 				`Got diff output using relative path (${diffOutput.length} bytes)`,
 			);
@@ -148,10 +112,12 @@ async function getGitDiff(
 			// Try with just the filename
 			try {
 				const filename = path.basename(filePath);
-				diffOutput = execSync(`git diff HEAD -- "${filename}"`, {
-					cwd: gitRoot,
-					encoding: "utf-8",
-				}).toString();
+				const { stdout } = await execa(
+					"git",
+					["diff", "HEAD", "--", filename],
+					{ cwd: gitRoot },
+				);
+				diffOutput = stdout;
 				console.log(
 					`Got diff output using filename only (${diffOutput.length} bytes)`,
 				);
@@ -180,54 +146,6 @@ async function getGitDiff(
 			error: error instanceof Error ? error.message : "Unknown error",
 		};
 	}
-}
-
-// Basic parser for git diff output to extract hunks
-function parseDiffOutput(diffOutput: string) {
-	const hunks: {
-		oldStart: number;
-		oldLines: number;
-		newStart: number;
-		newLines: number;
-		lines: string[];
-	}[] = [];
-
-	const hunkHeaders = diffOutput.match(/@@ -(\d+),?(\d*) \+(\d+),?(\d*) @@/g);
-	if (!hunkHeaders) return hunks;
-
-	for (const header of hunkHeaders) {
-		const match = header.match(/@@ -(\d+),?(\d*) \+(\d+),?(\d*) @@/);
-		if (!match || !match[1] || !match[3]) continue;
-
-		const oldStart = Number.parseInt(match[1], 10);
-		const oldLines = match[2] ? Number.parseInt(match[2], 10) : 1;
-		const newStart = Number.parseInt(match[3], 10);
-		const newLines = match[4] ? Number.parseInt(match[4], 10) : 1;
-
-		// Find the content of this hunk
-		const headerIndex = diffOutput.indexOf(header);
-		const nextHeaderIndex = diffOutput.indexOf("@@", headerIndex + 2);
-		const hunkContent =
-			nextHeaderIndex > -1
-				? diffOutput.substring(headerIndex + header.length, nextHeaderIndex)
-				: diffOutput.substring(headerIndex + header.length);
-
-		// Split into lines and remove the first empty line
-		const lines = hunkContent.split("\n");
-		if (lines[0] === "") lines.shift();
-		// Remove the last empty line if present
-		if (lines[lines.length - 1] === "") lines.pop();
-
-		hunks.push({
-			oldStart,
-			oldLines,
-			newStart,
-			newLines,
-			lines,
-		});
-	}
-
-	return hunks;
 }
 
 export async function GET(request: NextRequest) {

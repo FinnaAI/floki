@@ -7,6 +7,12 @@ export interface Project {
 	name: string;
 }
 
+interface MonacoTheme {
+	id: string;
+	data: any;
+	isLoaded: boolean;
+}
+
 interface IDEState {
 	currentAgent: string | null;
 	currentFile: string | null;
@@ -15,6 +21,7 @@ interface IDEState {
 	showTerminal: boolean;
 	showCodex: boolean;
 	editorTheme: string;
+	monacoThemes: Record<string, MonacoTheme>;
 	projects: Project[];
 	activeProject: string | null;
 
@@ -26,6 +33,8 @@ interface IDEState {
 	toggleTerminal: () => void;
 	toggleCodex: () => void;
 	setEditorTheme: (theme: string) => void;
+	addMonacoTheme: (themeName: string, themeData: any) => void;
+	isThemeLoaded: (themeName: string) => boolean;
 	addProject: (projectPath: string) => void;
 	removeProject: (projectPath: string) => void;
 	setActiveProject: (projectPath: string) => void;
@@ -43,6 +52,7 @@ export const useIDEStore = create<IDEState>()(
 			showTerminal: true,
 			showCodex: true,
 			editorTheme: "Twilight", // Default theme
+			monacoThemes: {},
 			projects: [],
 			activeProject: null,
 
@@ -57,7 +67,25 @@ export const useIDEStore = create<IDEState>()(
 			toggleTerminal: () =>
 				set((state) => ({ showTerminal: !state.showTerminal })),
 			toggleCodex: () => set((state) => ({ showCodex: !state.showCodex })),
+
 			setEditorTheme: (theme: string) => set({ editorTheme: theme }),
+
+			addMonacoTheme: (themeName: string, themeData: any) =>
+				set((state) => ({
+					monacoThemes: {
+						...state.monacoThemes,
+						[themeName]: {
+							id: themeName.toLowerCase().replace(/[^a-z0-9]/g, "-"),
+							data: themeData,
+							isLoaded: true,
+						},
+					},
+				})),
+
+			isThemeLoaded: (themeName: string) => {
+				const theme = get().monacoThemes[themeName];
+				return theme?.isLoaded || false;
+			},
 
 			addProject: (projectPath: string) =>
 				set((state) => {

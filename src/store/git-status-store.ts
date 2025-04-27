@@ -5,6 +5,18 @@ import { create } from "zustand";
 // Global interval storage
 let gitStatusPollIntervalId: number | null = null;
 
+// Constants
+const IGNORED_PATTERNS = [
+	".git",
+	"node_modules",
+	".next",
+	"dist",
+	"build",
+	".DS_Store",
+	"*.log",
+	"*.swp",
+];
+
 export interface GitStatus {
 	modified: string[];
 	added: string[];
@@ -35,6 +47,8 @@ interface GitStatusState {
 
 // Worker instance will be stored here
 let gitStatusWorker: Worker | null = null;
+// Unload listener reference
+let unloadListener: (() => void) | null = null;
 
 // Worker initialization function
 const initWorker = (get: () => GitStatusState) => {
@@ -85,6 +99,12 @@ const initWorker = (get: () => GitStatusState) => {
 export const useGitStatusStore = create<GitStatusState>((set, get) => {
 	// Initialize worker if we're in the browser
 	if (typeof window !== "undefined") {
+		// Add unload listener
+		if (!unloadListener) {
+			unloadListener = () => get().cleanup();
+			window.addEventListener("beforeunload", unloadListener);
+		}
+
 		// Pass get to initWorker
 		const worker = initWorker(get);
 		if (worker) {
@@ -296,24 +316,12 @@ export const useGitStatusStore = create<GitStatusState>((set, get) => {
 		},
 
 		isIgnored: (filePath: string): boolean => {
-			// Simple implementation for now - can be expanded to use .gitignore rules
-			const ignoredPatterns = [
-				".git",
-				"node_modules",
-				".next",
-				"dist",
-				"build",
-				".DS_Store",
-				"*.log",
-				"*.swp",
-			];
-
 			const fileName = path.basename(filePath);
 			const relativePath = filePath
 				.replace(get().currentPath, "")
 				.replace(/^\//, "");
 
-			return ignoredPatterns.some((pattern) => {
+			return IGNORED_PATTERNS.some((pattern) => {
 				if (pattern.includes("*")) {
 					const regex = new RegExp(`^${pattern.replace("*", ".*")}$`);
 					return regex.test(fileName);
@@ -395,6 +403,12 @@ export const useGitStatusStore = create<GitStatusState>((set, get) => {
 				gitStatusPollIntervalId = null;
 			}
 
+			// Remove event listener
+			if (unloadListener) {
+				window.removeEventListener("beforeunload", unloadListener);
+				unloadListener = null;
+			}
+
 			set({ isPolling: false, gitStatus: null });
 		},
 
@@ -422,25 +436,6 @@ export const useGitStatusStore = create<GitStatusState>((set, get) => {
 			}, pollInterval);
 
 			set({ isPolling: true });
-
-			// Clean up on window unload
-			window.addEventListener(
-				"beforeunload",
-				() => {
-					if (gitStatusPollIntervalId !== null) {
-						clearInterval(gitStatusPollIntervalId);
-						gitStatusPollIntervalId = null;
-					}
-				},
-				{ once: true },
-			);
 		},
 	};
 });
-
-// Cleanup on page unload
-if (typeof window !== "undefined") {
-	window.addEventListener("beforeunload", () => {
-		useGitStatusStore.getState().cleanup();
-	});
-}

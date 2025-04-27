@@ -128,6 +128,7 @@ export function TerminalComponent({
 				try {
 					// Open terminal in the container
 					term.open(terminalRef.current);
+					term.focus();
 					term.writeln("Terminal initialized. Connecting to session...");
 
 					// Wait for the terminal to fully render and handle initial fit
@@ -332,6 +333,7 @@ export function TerminalComponent({
 				}
 
 				dataListenerRef.current = terminalInstance.current.onData((data) => {
+					terminalInstance.current?.write(data);
 					if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
 						wsRef.current.send(
 							JSON.stringify({

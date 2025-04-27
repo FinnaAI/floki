@@ -1,0 +1,143 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+# Mocking Guidelines
+
+## Global Mocks
+All global mocks are defined in [src/test/setup.ts](mdc:src/test/setup.ts):
+
+```typescript
+// WebSocket
+global.WebSocket = vi.fn().mockImplementation(() => ({
+  onmessage: null,
+  send: vi.fn(),
+  close: vi.fn(),
+  addEventListener: vi.fn(),
+  removeEventListener: vi.fn(),
+}));
+
+// MessageEvent
+global.MessageEvent = vi.fn().mockImplementation((type, init) => ({
+  type,
+  data: init?.data,
+}));
+
+// Worker
+global.Worker = vi.fn().mockImplementation(() => ({
+  onmessage: null,
+  postMessage: vi.fn(),
+  terminate: vi.fn(),
+}));
+
+// Fetch
+global.fetch = vi.fn(() => Promise.resolve({
+  json: () => Promise.resolve({}),
+  ok: true,
+  status: 200,
+}));
+```
+
+## Mock Factories
+
+### API Route Mocks
+```typescript
+import { createMocks } from 'node-mocks-http';
+
+const { req, res } = createMocks({
+  method: 'GET',
+  query: { path: '/test' },
+});
+```
+
+### WebSocket Mocks
+```typescript
+import WS from 'jest-websocket-mock';
+
+const server = new WS('ws://localhost:4000');
+await server.connected;
+```
+
+### Worker Mocks
+```typescript
+class WorkerMock {
+  onmessage: ((e: MessageEvent) => void) | null = null;
+  postMessage(data: any) {
+    if (this.onmessage) {
+      this.onmessage(new MessageEvent('message', { data }));
+    }
+  }
+}
+```
+
+## Best Practices
+
+1. **Mock Reset**
+   - Reset mocks in `beforeEach`
+   - Clean up resources in `afterEach`
+   ```typescript
+   beforeEach(() => {
+     vi.clearAllMocks();
+   });
+   ```
+
+2. **Type Safety**
+   - Type your mocks properly
+   - Use `as unknown as Type` for complex types
+   ```typescript
+   const mockFn = vi.fn() as unknown as () => Promise<void>;
+   ```
+
+3. **Mock Implementation**
+   - Use `vi.fn()` for simple mocks
+   - Use `mockImplementation()` for complex behavior
+   - Use `mockResolvedValue()` for promises
+   ```typescript
+   const mock = vi.fn()
+     .mockImplementationOnce(() => 'first call')
+     .mockImplementationOnce(() => 'second call');
+   ```
+
+4. **Spies**
+   - Use `vi.spyOn()` to mock methods
+   - Restore original implementation in cleanup
+   ```typescript
+   const spy = vi.spyOn(object, 'method');
+   spy.mockImplementation(() => 'mocked');
+   ```
+
+5. **Time Control**
+   - Use `vi.useFakeTimers()` for time-based tests
+   - Run timers with `vi.runAllTimers()`
+   ```typescript
+   vi.useFakeTimers();
+   vi.runAllTimers();
+   vi.useRealTimers();
+   ```
+
+## Custom Matchers
+
+Define in [src/test/setup.ts](mdc:src/test/setup.ts):
+
+```typescript
+expect.extend({
+  async toReceiveMessage(ws: WebSocket, expected: string) {
+    try {
+      const received = await new Promise<string>((resolve) => {
+        ws.onmessage = (event) => resolve(event.data);
+      });
+
+      return {
+        pass: received === expected,
+        message: () => `expected ${expected} but received ${received}`,
+      };
+    } catch (error) {
+      return {
+        pass: false,
+        message: () => `WebSocket error: ${error}`,
+      };
+    }
+  },
+});
+```
