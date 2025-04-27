@@ -1,5 +1,5 @@
 import { useCallback, useRef, useState } from "react";
-import type { DiffEditorType } from "../types";
+import type { DiffEditorType, GitFileStatus } from "../types";
 
 interface FileDiff {
 	oldContent: string;
@@ -15,7 +15,7 @@ interface FileDiff {
 
 interface UseDiffOptions {
 	currentPath?: string;
-	fileStatus?: string | null;
+	fileStatus?: GitFileStatus;
 }
 
 export const useDiff = ({
@@ -55,7 +55,6 @@ export const useDiff = ({
 							};
 
 							setDiffData(newDiffData);
-							setShowDiff(true);
 							return;
 						}
 
@@ -84,7 +83,6 @@ export const useDiff = ({
 						hunks: [],
 					});
 				}
-				setShowDiff(true);
 			} catch (error) {
 				console.error("Error in loadDiff:", error);
 				setShowDiff(false);

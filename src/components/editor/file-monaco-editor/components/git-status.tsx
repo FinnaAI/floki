@@ -1,10 +1,9 @@
 import { Badge } from "@/components/ui/badge";
 import React from "react";
-
-type GitStatus = "modified" | "added" | "deleted" | "untracked" | null;
+import type { GitFileStatus } from "../types";
 
 interface GitStatusBadgeProps {
-	status: GitStatus;
+	status: GitFileStatus;
 }
 
 export const GitStatusBadge = React.memo(({ status }: GitStatusBadgeProps) => {

@@ -1,11 +1,14 @@
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { FileText } from "lucide-react";
+import dynamic from "next/dynamic";
 import React, { useEffect, useState } from "react";
 import { EditorToolbar } from "./components/editor-toolbar";
 import { ImageViewer } from "./components/image-viewer";
 import { MonacoWrapper } from "./components/monaco-wrapper";
 import { useDiff } from "./hooks/use-diff";
 import type { FileDiff, FileInfo } from "./types";
+// Import util for language detection
+import { getLanguageFromFileName } from "./utils/language-map";
 
 interface FileMonacoEditorProps {
 	selectedFile: FileInfo | null;
@@ -34,6 +37,13 @@ const loadAvailableThemes = async () => {
 		return ["OneDark-Pro"]; // Fallback to default theme
 	}
 };
+
+// diff editor must load on client only
+const DiffEditor = dynamic(
+	() =>
+		import("@monaco-editor/react").then((mod) => ({ default: mod.DiffEditor })),
+	{ ssr: false, loading: () => null },
+);
 
 export const FileMonacoEditor = React.memo(
 	({
@@ -94,6 +104,9 @@ export const FileMonacoEditor = React.memo(
 			setIsEditing(!isEditing);
 		};
 
+		// hush unused loading prop for now
+		void loading;
+
 		if (error) {
 			return (
 				<div className="flex h-24 items-center justify-center text-red-500">
@@ -152,12 +165,38 @@ export const FileMonacoEditor = React.memo(
 											</span>
 										)}
 									</div>
-									<MonacoWrapper
-										selectedFile={selectedFile}
-										fileContent={diffData?.newContent || fileContent}
-										theme={editorTheme}
-										isEditing={false}
-									/>
+									<div className="w-full overflow-hidden">
+										<DiffEditor
+											original={diffData?.oldContent || initialFileDiff?.oldContent || ""}
+											modified={diffData?.newContent || initialFileDiff?.newContent || fileContent || ""}
+											language={getLanguageFromFileName(selectedFile.name)}
+											theme={editorTheme}
+											beforeMount={(monaco) => {
+												const themeId = editorTheme.toLowerCase().replace(/[^a-z0-9]/g, "-");
+												// Define a minimal fallback theme (will overwrite if already defined, harmless)
+												monaco.editor.defineTheme(themeId, {
+													base: "vs-dark",
+													inherit: true,
+													rules: [],
+													colors: {},
+												});
+											}}
+											options={{
+												readOnly: true,
+												minimap: { enabled: false },
+												scrollBeyondLastLine: false,
+												renderSideBySide: true,
+												wordWrap: "on",
+												diffWordWrap: "on",
+												renderWhitespace: "none",
+												renderControlCharacters: false,
+												renderLineHighlight: "none",
+											}}
+											onMount={handleDiffEditorMount}
+											height="40vh"
+											key={`diff-${selectedFile.path}-${showDiff}`}
+										/>
+									</div>
 								</div>
 							)}
 

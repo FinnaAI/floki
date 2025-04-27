@@ -92,7 +92,7 @@ export const useMonaco = ({
 			}
 
 			try {
-				const response = await fetch(`/api/themes/${themeName}.json`);
+				const response = await fetch(`/api/themes/${themeName}`);
 				const themeData = await response.json();
 
 				const themeId = themeName.toLowerCase().replace(/[^a-z0-9]/g, "-");

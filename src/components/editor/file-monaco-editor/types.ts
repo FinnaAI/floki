@@ -20,7 +20,7 @@ export interface FileDiff {
 	}>;
 }
 
-export type GitStatus = "modified" | "added" | "deleted" | "untracked" | null;
+export type GitFileStatus = "modified" | "added" | "deleted" | "untracked" | null;
 
 export type DiffEditorType = {
 	getOriginalEditor: () => Parameters<OnMount>[0];

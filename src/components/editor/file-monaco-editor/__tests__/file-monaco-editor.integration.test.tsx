@@ -24,7 +24,7 @@ vi.mock("@/store/git-status-store", () => ({
 global.fetch = vi.fn(() =>
 	Promise.resolve({
 		ok: true,
-		json: () => Promise.resolve({ themes: ["test-theme", "OneDark-Pro"] }),
+		json: () => Promise.resolve({ themes: ["test-theme", "Twilight"] }),
 	}),
 ) as unknown as typeof fetch;
 
@@ -67,10 +67,10 @@ describe("FileMonacoEditor", () => {
 		const themeSelect = screen.getByTestId("select-trigger");
 		await userEvent.click(themeSelect);
 
-		const themeOption = screen.getByTestId("select-item-OneDark-Pro");
+		const themeOption = screen.getByTestId("select-item-Twilight");
 		await userEvent.click(themeOption);
 
-		expect(mockSetEditorTheme).toHaveBeenCalledWith("OneDark-Pro");
+		expect(mockSetEditorTheme).toHaveBeenCalledWith("Twilight");
 	});
 
 	it("handles edit mode toggle", async () => {
