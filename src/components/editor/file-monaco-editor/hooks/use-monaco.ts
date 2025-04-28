@@ -57,6 +57,10 @@ export const useMonaco = ({
 				"tsx",
 				"vue",
 				"svelte",
+				"jsonc",
+				"toml",
+				"yaml",
+				"yml",
 			] as const satisfies Parameters<typeof createHighlighter>[0]["langs"];
 
 			for (const lang of ADDITIONAL_LANGUAGES) {
@@ -65,7 +69,7 @@ export const useMonaco = ({
 
 			try {
 				const highlighter = await createHighlighter({
-					themes: ["vs-dark", "dark-plus", "github-dark", "github-light"],
+					themes: ["vs-dark", "dark-plus", "github-dark", "github-light", "Twilight"],
 					langs: ADDITIONAL_LANGUAGES,
 				});
 
