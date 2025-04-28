@@ -5,11 +5,11 @@ import type {
 	WebFileSystem,
 } from "@/interfaces/FileSystem/FileSystem";
 import { createFileSystem } from "@/lib/file-system";
-import { useFileTreeStore } from "@/store/file-tree-store";
+import { fileTreeActions, useFileTreeStore } from "@/store/file-tree-store";
 import { useIDEStore } from "@/store/ide-store";
 import type { FileDiff } from "@/types/files";
 import { create } from "zustand";
-import { useGitStatusStore } from "./git-status-store";
+import { gitStatusActions } from "./git-status-store";
 
 // Helper to get parent path
 const getParentPath = (filePath: string): string => {
@@ -41,6 +41,7 @@ interface FileState {
 	needsDirectoryPermission: boolean;
 	fileWatchEnabled: boolean;
 	fileWatcherCleanup: (() => void) | null;
+	tree: DirEntry | null;
 
 	// Map of project path to directory handle
 	projectHandles: Record<string, FileSystemDirectoryHandle | undefined>;
@@ -55,6 +56,7 @@ interface FileState {
 			selectedFile: FileInfo | null;
 			fileContent: string | null;
 			fileDiff: FileDiff | null;
+			tree: DirEntry | null;
 		}
 	>;
 
@@ -127,6 +129,11 @@ interface FileState {
 
 	// Add a method to load directory handles from IndexedDB
 	loadDirectoryHandlesFromIndexedDB: () => Promise<void>;
+
+
+	isIgnored: (path: string) => boolean;
+	getFileStatus: (path: string) => string;
+
 }
 
 // Type guard for WebFileSystem
@@ -141,7 +148,27 @@ interface FileSystemHandleWithPermission extends FileSystemDirectoryHandle {
 	>;
 }
 
-export const useFileStore = create<FileState>((set, get) => ({
+interface DirEntry {
+	children: Record<string, DirEntry>;
+	file?: FileInfo;           // undefined for directories
+}
+
+function buildTree(files: FileInfo[]): DirEntry {
+	const root: DirEntry = { children: {} };
+
+	for (const f of files) {
+		const parts = f.path.split("/");
+		let node = root;
+		parts.forEach((part, idx) => {
+			node.children[part] ??= { children: {} };
+			if (idx === parts.length - 1) node.children[part].file = f;
+			node = node.children[part];
+		});
+	}
+	return root;
+}
+
+export const useFileStore = create<FileState>()((set, get): FileState => ({
 	// Initial state
 	currentPath: "",
 	files: [],
@@ -163,10 +190,14 @@ export const useFileStore = create<FileState>((set, get) => ({
 	fileWatcherCleanup: null,
 	projectHandles: {},
 	projectStates: {},
+	tree: null,
 
 	// Basic setters
 	setFiles: (files: FileInfo[]) => {
-		set({ files });
+		set({ 
+			files, 
+			tree: buildTree(files)  // Build and store the tree
+		});
 
 		// Start file watching if enabled and not already watching
 		const state = get();
@@ -222,7 +253,6 @@ export const useFileStore = create<FileState>((set, get) => ({
 	) => {
 		const state = get();
 		const { currentPath, files, directoryLoading } = state;
-		const gitStore = useGitStatusStore.getState();
 
 		// Check if we have access to files
 		if (isWebFileSystem(fileSystem)) {
@@ -264,6 +294,7 @@ export const useFileStore = create<FileState>((set, get) => ({
 				loading: false,
 				hasInitialized: true,
 				error: null,
+				tree: buildTree(files),
 			});
 
 			// Update git status
@@ -273,7 +304,7 @@ export const useFileStore = create<FileState>((set, get) => ({
 					? fileSystem.folderHandle?.name || dirPath
 					: dirPath;
 				console.log("Setting Git absolute path:", absolutePath);
-				gitStore.setCurrentPath(absolutePath);
+				gitStatusActions.setCurrentPath(absolutePath);
 			} else {
 				// If at project root, use the folderHandle name or currentPath as the absolute path
 				const absolutePath = isWebFileSystem(fileSystem)
@@ -281,10 +312,10 @@ export const useFileStore = create<FileState>((set, get) => ({
 					: dirPath;
 				if (absolutePath) {
 					console.log("Setting Git status to project root:", absolutePath);
-					gitStore.setCurrentPath(absolutePath);
+					gitStatusActions.setCurrentPath(absolutePath);
 				}
 			}
-			await gitStore.fetchGitStatus();
+			await gitStatusActions.fetchGitStatus();
 
 			// Update navigation history if needed
 			if (addToHistory && oldPath && dirPath !== oldPath) {
@@ -295,7 +326,7 @@ export const useFileStore = create<FileState>((set, get) => ({
 			}
 
 			// Update file tree store's filtered files
-			useFileTreeStore.getState().setFilteredFiles(files);
+			fileTreeActions.setFilteredFiles(files);
 
 			// Start watching the directory for changes if enabled
 			if (state.fileWatchEnabled) {
@@ -314,7 +345,6 @@ export const useFileStore = create<FileState>((set, get) => ({
 	// Action to load file content
 	loadFileContent: async (fileInfo: FileInfo) => {
 		const state = get();
-		const gitStore = useGitStatusStore.getState();
 
 		// Check if we need to save the current file before switching
 		if (state.selectedFile && state.selectedFile.path !== fileInfo.path) {
@@ -397,8 +427,8 @@ export const useFileStore = create<FileState>((set, get) => ({
 
 			// If git status is enabled and this file is modified, load the diff immediately
 			if (
-				gitStore.showGitStatus &&
-				gitStore.getFileStatus(fileInfo.path) === "modified"
+				gitStatusActions.showGitStatus &&
+				gitStatusActions.getFileStatus(fileInfo.path) === "modified"
 			) {
 				console.log("Loading diff for modified file");
 				get().loadFileDiff(fileInfo.path);
@@ -416,8 +446,7 @@ export const useFileStore = create<FileState>((set, get) => ({
 
 	// Action to load git diff for a file
 	loadFileDiff: async (filePath: string) => {
-		const gitStore = useGitStatusStore.getState();
-		const fileStatus = gitStore.getFileStatus(filePath);
+		const fileStatus = gitStatusActions.getFileStatus(filePath);
 
 		// Only load diff for modified files
 		if (fileStatus !== "modified") {
@@ -528,23 +557,22 @@ export const useFileStore = create<FileState>((set, get) => ({
 	},
 
 	// Reload current directory
-	refreshDirectory: () => {
-		const { currentPath, loadDirectory } = get();
-
-		// First, if we're in a sub-directory, also refresh the parent directory
-		if (currentPath) {
-			const parentPath = getParentPath(currentPath);
-			if (parentPath && parentPath !== currentPath) {
-				console.log("Refreshing parent directory:", parentPath);
-				// Load parent directory content if needed
-				const fileStore = get();
-				fileStore.loadDirectoryChildren(parentPath, true);
-			}
+	refreshDirectory: async () => {
+		const { currentPath, loadDirectory, files } = get();
+		
+		// Check if the changes are meaningful before triggering a refresh
+		const changedFiles = await fileSystem.listFiles(currentPath || "", false);
+		
+		// Simple hash function to compare arrays
+		const fileHash = (files) => files.map(f => `${f.path}:${f.size}:${f.lastModified.getTime()}`).sort().join('|');
+		
+		// Only reload if actual changes detected
+		if (fileHash(changedFiles) !== fileHash(files)) {
+			console.log("Meaningful changes detected, refreshing directory");
+			loadDirectory(currentPath, false, true);
+		} else {
+			console.log("No meaningful changes, skipping refresh");
 		}
-
-		console.log("Refreshing current directory:", currentPath);
-		// Now refresh the current directory - force reload by passing forceRefresh=true
-		loadDirectory(currentPath, false, true);
 	},
 
 	// Get breadcrumbs for navigation
@@ -617,21 +645,21 @@ export const useFileStore = create<FileState>((set, get) => ({
 				const handle = await fileSystem.openFolder();
 				if (handle) {
 					set({ needsDirectoryPermission: false });
-					
+
 					// Request persistent permission for this directory handle
 					await get().persistDirectoryPermission(handle);
-					
+
 					// Save handle to IndexedDB for persistence between sessions
 					await get().saveDirectoryHandleToIndexedDB(handle, handle.name);
-					
+
 					await get().loadDirectory("", true);
-					
+
 					// Start watching if enabled
 					const state = get();
 					if (state.fileWatchEnabled) {
 						state.watchDirectory("");
 					}
-					
+
 					return handle;
 				}
 			}
@@ -654,13 +682,13 @@ export const useFileStore = create<FileState>((set, get) => ({
 				const handle = await fileSystem.openFolder();
 				if (handle) {
 					const projectPath = handle.name;
-					
+
 					// Request persistent permission for this directory handle
 					await get().persistDirectoryPermission(handle);
-					
+
 					// Save handle to IndexedDB for persistence between sessions
 					await get().saveDirectoryHandleToIndexedDB(handle, projectPath);
-					
+
 					// Store handle mapping (in-memory, not persisted)
 					set((state) => ({
 						projectHandles: { ...state.projectHandles, [projectPath]: handle },
@@ -702,6 +730,7 @@ export const useFileStore = create<FileState>((set, get) => ({
 						selectedFile: state.selectedFile,
 						fileContent: state.fileContent,
 						fileDiff: state.fileDiff,
+						tree: state.tree,
 					},
 				},
 			}));
@@ -730,6 +759,7 @@ export const useFileStore = create<FileState>((set, get) => ({
 			directoryLoading: true,
 			loading: true,
 			error: null,
+			tree: null,
 		});
 
 		// Update file system handle
@@ -747,9 +777,15 @@ export const useFileStore = create<FileState>((set, get) => ({
 
 		if (snapshot) {
 			console.log(`Restoring project snapshot for "${projectPath}"`);
-
-			// Now load the directory to ensure everything is fresh
-			await get().loadDirectory("", false);
+			set({ 
+				files: snapshot.files,
+				filteredFiles: snapshot.filteredFiles,
+				currentPath: snapshot.currentPath,
+				selectedFile: snapshot.selectedFile,
+				fileContent: snapshot.fileContent,
+				fileDiff: snapshot.fileDiff,
+				tree: snapshot.tree
+			});
 		} else {
 			console.log(`No snapshot found for "${projectPath}", doing fresh load`);
 			// Do a fresh load if no snapshot
@@ -778,7 +814,9 @@ export const useFileStore = create<FileState>((set, get) => ({
 				}
 			}
 
-			setFiles(merged);
+			// Update files and rebuild tree
+			setFiles(merged); // This will now set both files and tree
+			
 			// Keep filteredFiles in sync – apply current search query filter if exists
 			const { searchQuery } = get();
 			if (searchQuery) {
@@ -812,7 +850,7 @@ export const useFileStore = create<FileState>((set, get) => ({
 
 		// First, try to load handles from IndexedDB
 		await get().loadDirectoryHandlesFromIndexedDB();
-		
+
 		try {
 			// If we already have a handle for this project, use it
 			const existingHandle = get().projectHandles[activeProject];
@@ -821,13 +859,14 @@ export const useFileStore = create<FileState>((set, get) => ({
 				if (isWebFileSystem(fileSystem)) {
 					await fileSystem.setFolderHandle(existingHandle);
 				}
-				
+
 				// Check if we still have permission
-				const hasPermission = await get().persistDirectoryPermission(existingHandle);
+				const hasPermission =
+					await get().persistDirectoryPermission(existingHandle);
 				if (hasPermission) {
 					set({ needsDirectoryPermission: false });
 					await get().loadDirectory("", true);
-					
+
 					// Start watching if enabled
 					const state = get();
 					if (state.fileWatchEnabled && isWebFileSystem(fileSystem)) {
@@ -846,7 +885,8 @@ export const useFileStore = create<FileState>((set, get) => ({
 		} catch (err) {
 			console.error("Error initializing project:", err);
 			set({
-				error: err instanceof Error ? err.message : "Failed to initialize project",
+				error:
+					err instanceof Error ? err.message : "Failed to initialize project",
 				loading: false,
 				directoryLoading: false,
 				needsDirectoryPermission: true,
@@ -1098,10 +1138,7 @@ export const useFileStore = create<FileState>((set, get) => ({
 			});
 
 			// Refresh git status if available
-			const gitStore = useGitStatusStore.getState();
-			if (gitStore.showGitStatus) {
-				await gitStore.fetchGitStatus();
-			}
+			await gitStatusActions.fetchGitStatus();
 		} catch (err) {
 			console.error("Error saving file:", err);
 			set({
@@ -1342,4 +1379,36 @@ export const useFileStore = create<FileState>((set, get) => ({
 			console.error("Error loading directory handles from IndexedDB:", err);
 		}
 	},
+	isIgnored: (path: string) => {
+		// Get status directly from gitStatusActions instead of recursively
+		return gitStatusActions.isIgnored?.(path) ?? false;
+	},
+	getFileStatus: (path: string) => {
+		// Get status directly from gitStatusActions instead of recursively
+		return gitStatusActions.getFileStatus?.(path) ?? "";
+	},
 }));
+
+export const selectFileState = (state: FileState) => ({
+	files: state.files,
+	selectedFile: state.selectedFile,
+	loading: state.loading,
+	directoryLoading: state.directoryLoading,
+	error: state.error,
+	currentPath: state.currentPath,
+});
+
+export const selectFileActions = (state: FileState) => ({
+	handleFileClick: state.handleFileClick,
+	toggleFileSelection: state.toggleFileSelection,
+	isFileSelected: state.isFileSelected,
+	openFolder: state.openFolder,
+	createFile: state.createFile,
+	createFolder: state.createFolder,
+	deleteFile: state.deleteFile,
+});
+
+export const selectFileSelection = (state: FileState) => ({
+	selectedFiles: state.selectedFiles,
+	clearSelectedFiles: state.clearSelectedFiles,
+});

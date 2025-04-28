@@ -146,12 +146,16 @@ async function detectChanges(path: string): Promise<FileInfo[]> {
 		const cached = fileCache.get(file.path);
 		newCache.set(file.path, file);
 
-		if (
-			!cached ||
-			cached.lastModified.getTime() !== file.lastModified.getTime() ||
-			cached.size !== file.size
-		) {
-			console.log("[Worker] Change detected for file:", file.path);
+		// Don't report top-level directories as changed unless they're new
+		if (file.isDirectory && file.path.split('/').filter(Boolean).length === 1) {
+			if (!cached) {
+				changes.push(file); // Only report if it's brand new
+			}
+			continue;
+		}
+
+		// Existing change detection logic for files
+		if (!cached || cached.lastModified.getTime() !== file.lastModified.getTime() || cached.size !== file.size) {
 			changes.push(file);
 		}
 	}

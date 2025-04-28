@@ -17,6 +17,7 @@ import {
 import Link from "next/link";
 import { useCallback } from "react";
 import type { ReactNode } from "react";
+import { useShallow } from "zustand/react/shallow";
 
 interface IDEHeaderProps {
 	children: ReactNode;
@@ -30,7 +31,14 @@ export function IDEHeader({ children }: IDEHeaderProps) {
 		removeProject,
 		setActiveProject,
 		addProject,
-	} = useIDEStore();
+	} = useIDEStore(useShallow(state => ({
+		projects: state.projects,
+		activeProject: state.activeProject,
+		removeProject: state.removeProject,
+		setActiveProject: state.setActiveProject,
+		addProject: state.addProject,
+	})));
+
 
 	const handleOpenFolder = useCallback(async () => {
 		try {

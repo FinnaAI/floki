@@ -1,7 +1,13 @@
+import { useDirectoryTreeStore } from "@/store/directory-tree-store";
+import { selectDirectoryTreeActions, selectDirectoryTreeState } from "@/store/directory-tree-store";
 import { useFileStore } from "@/store/file-store";
+import { selectFileActions, selectFileSelection, selectFileState } from "@/store/file-store";
 import { useFileTreeStore } from "@/store/file-tree-store";
+import { selectFileTreeActions, selectFileTreeState } from "@/store/file-tree-store";
 import { useGitStatusStore } from "@/store/git-status-store";
+import { selectGitStatusUtils } from '@/store/git-status-store';
 import { useEffect, useState } from "react";
+import { useShallow } from 'zustand/react/shallow';
 
 export function useFileTree() {
 	// State for creation dialogs
@@ -13,50 +19,42 @@ export function useFileTree() {
 	const [renameTarget, setRenameTarget] = useState<string | null>(null);
 	const [draftName, setDraftName] = useState("");
 
-	// Get state from stores
-	const {
-		files,
-		selectedFile,
-		loading,
-		directoryLoading,
-		error,
-		currentPath,
-		handleFileClick,
-		toggleFileSelection,
-		isFileSelected,
-		openFolder,
-		needsDirectoryPermission,
-		createFile,
-		createFolder,
-		deleteFile,
-		selectedFiles,
-		clearSelectedFiles,
-	} = useFileStore();
+	// Use selectors for cleaner state management
+	const fileState = useFileStore(useShallow(selectFileState));
+	const fileActions = useFileStore(useShallow(selectFileActions));
+	const fileSelection = useFileStore(useShallow(selectFileSelection));
+	
+	const fileTreeState = useFileTreeStore(useShallow(selectFileTreeState));
+	const fileTreeActions = useFileTreeStore(useShallow(selectFileTreeActions));
+	
+	const gitStatusUtils = useGitStatusStore(useShallow(selectGitStatusUtils));
 
-	const { searchQuery, filteredFiles, setSearchQuery, clearSearch } =
-		useFileTreeStore();
-
-	const { isIgnored, getFileStatus, showIgnoredFiles } = useGitStatusStore();
+	const directoryTreeState = useDirectoryTreeStore(
+		useShallow(selectDirectoryTreeState)
+	);
+	const directoryTreeActions = useDirectoryTreeStore(
+		useShallow(selectDirectoryTreeActions)
+	);
 
 	// Sync files with file-tree-store and handle filtering
 	useEffect(() => {
-		if (!searchQuery) {
-			useFileTreeStore.getState().setFilteredFiles(files);
+		if (!fileTreeState.searchQuery) {
+			useFileTreeStore.getState().setFilteredFiles(fileState.files);
 			return;
 		}
 
-		const lowercaseQuery = searchQuery.toLowerCase();
-		const filtered = files.filter((file) =>
+		const lowercaseQuery = fileTreeState.searchQuery.toLowerCase();
+		const filtered = fileState.files.filter((file) =>
 			file.name.toLowerCase().includes(lowercaseQuery),
 		);
 
 		useFileTreeStore.getState().setFilteredFiles(filtered);
-	}, [files, searchQuery]);
+	}, [fileState.files, fileTreeState.searchQuery]);
 
 	// Handle creation of new items
 	const handleCreateItem = (
 		isDirectory: boolean,
-		parentDir: string = currentPath,
+		parentDir: string = fileState.currentPath,
 	) => {
 		const defaultName = isDirectory ? "New Folder" : "new-file.ts";
 		setDraft({ parentDir, isDirectory });
@@ -71,9 +69,9 @@ export function useFileTree() {
 				await useFileStore.getState().renameItem(renameTarget, draftName);
 				setRenameTarget(null);
 			} else if (draft.isDirectory) {
-				await createFolder(draft.parentDir, draftName);
+				await useFileStore.getState().createFolder(draft.parentDir, draftName);
 			} else {
-				await createFile(draft.parentDir, draftName);
+				await useFileStore.getState().createFile(draft.parentDir, draftName);
 			}
 			// Force a refresh of the current directory to ensure the new item appears
 			useFileStore.getState().refreshDirectory();
@@ -92,39 +90,23 @@ export function useFileTree() {
 	};
 
 	return {
-		// State
-		files,
-		filteredFiles,
-		selectedFile,
-		loading,
-		directoryLoading,
-		error,
-		currentPath,
-		searchQuery,
-		needsDirectoryPermission,
+		...fileState,
+		...fileActions,
+		...fileSelection,
+		...fileTreeState,
+		...fileTreeActions,
+		...gitStatusUtils,
+		...directoryTreeState,
+		...directoryTreeActions,
+		// Local state
 		draft,
 		draftName,
 		renameTarget,
-
-		// Git status
-		isIgnored,
-		getFileStatus,
-		showIgnoredFiles,
-
-		// Actions
-		handleFileClick,
-		toggleFileSelection,
-		isFileSelected,
-		openFolder,
-		setSearchQuery,
-		clearSearch,
+		// Local actions
 		handleCreateItem,
 		commitDraft,
 		cancelDraft,
 		setRenameTarget,
 		setDraftName,
-		deleteFile,
-		selectedFiles,
-		clearSelectedFiles,
 	};
 }

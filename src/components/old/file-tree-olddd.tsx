@@ -37,6 +37,7 @@ import {
 	useMemo,
 	useState,
 } from "react";
+import { useShallow } from "zustand/react/shallow";
 
 // Inline editor for creating/renaming
 const InlineEditor = memo(
@@ -143,7 +144,13 @@ export function FileTree() {
 		setSearchQuery,
 		setFilteredFiles,
 		clearSearch,
-	} = useFileTreeStore();
+	} = useFileTreeStore(useShallow(state => ({
+		searchQuery: state.searchQuery,
+		filteredFiles: state.filteredFiles,
+		setSearchQuery: state.setSearchQuery,
+		setFilteredFiles: state.setFilteredFiles,
+		clearSearch: state.clearSearch,
+	})));
 
 	// State for creation dialogs
 	const [draft, setDraft] = useState<{

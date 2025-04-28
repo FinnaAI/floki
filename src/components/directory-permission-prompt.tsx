@@ -12,9 +12,12 @@ import {
 import { useFileStore } from "@/store/file-store";
 import { FolderOpen } from "lucide-react";
 import { useState } from "react";
-
+import { useShallow } from "zustand/react/shallow";
 export function DirectoryPermissionPrompt() {
-	const { openFolder, requestPersistentStorage } = useFileStore();
+	const { openFolder, requestPersistentStorage } = useFileStore(useShallow(state => ({
+		openFolder: state.openFolder,
+		requestPersistentStorage: state.requestPersistentStorage,
+	})));
 	const [loading, setLoading] = useState(false);
 	const [persistenceGranted, setPersistenceGranted] = useState(false);
 

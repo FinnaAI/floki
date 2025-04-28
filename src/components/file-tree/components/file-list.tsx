@@ -1,6 +1,4 @@
 "use client";
-
-import { Button } from "@/components/ui/button";
 import {
 	ContextMenu,
 	ContextMenuContent,
@@ -8,150 +6,165 @@ import {
 	ContextMenuTrigger,
 } from "@/components/ui/context-menu";
 import { useFileStore } from "@/store/file-store";
+import type { FileInfo } from "@/types/files";
 import { FilePlus, FolderPlus } from "lucide-react";
-import { memo, useMemo } from "react";
-import type { FileListProps } from "../types";
+import { memo, useCallback, useMemo } from "react";
+import { useShallow } from "zustand/react/shallow";
 import { DirectoryNode } from "./directory-node";
 import { FileNode } from "./file-node";
 import { InlineEditor } from "./inline-editor";
 
-// Helper to get parent path
-const getParentPath = (filePath: string): string => {
-	const idx = filePath.lastIndexOf("/");
-	if (idx === -1) return "";
-	return filePath.substring(0, idx);
-};
-
 export const FileList = memo(
 	({
 		files,
-		selectedFile,
 		currentPath,
+		selectedFile,
 		isIgnored,
 		getFileStatus,
 		showIgnoredFiles,
-		onFileClick,
-		onToggleSelect,
-		isSelected,
-		onCreateFile,
-		onCreateFolder,
-		onDeleteFile,
+		handleFileClick,
+		toggleFileSelection,
+		isFileSelected,
 		draft,
-		renameTarget,
 		draftName,
-		setDraftName,
 		commitDraft,
 		cancelDraft,
 		setRenameTarget,
-	}: FileListProps) => {
-		const { rootDirs, rootFiles } = useMemo(() => {
-			const rootDirs: typeof files = [];
-			const rootFiles: typeof files = [];
+		setDraftName,
+		renameTarget,
+		onCreateFile,
+		onCreateFolder,
+	}: {
+		files: FileInfo[];
+		currentPath: string;
+		selectedFile: FileInfo | null;
+		isIgnored: (path: string) => boolean;
+		getFileStatus: (path: string) => string;
+		showIgnoredFiles: boolean;
+		handleFileClick: (file: FileInfo) => void;
+		toggleFileSelection: (file: FileInfo) => void;
+		isFileSelected: (file: FileInfo) => boolean;
+		draft: { parentDir: string; isDirectory: boolean } | null;
+		draftName: string;
+		commitDraft: () => void;
+		cancelDraft: () => void;
+		setRenameTarget: (path: string | null) => void;
+		setDraftName: (name: string) => void;
+		renameTarget: string | null;
+		onCreateFile: (isDirectory: boolean, parentDir?: string) => void;
+		onCreateFolder: (isDirectory: boolean, parentDir?: string) => void;
+	}) => {
+		// Create stable callbacks for menu item handlers
+		const handleCreateFolder = useCallback(() => {
+			onCreateFolder(true, currentPath);
+		}, [onCreateFolder, currentPath]);
 
-			for (const file of files) {
-				// skip parent directory placeholder ".."
-				if (file.name === "..") continue;
+		const handleCreateFile = useCallback(() => {
+			onCreateFile(false, currentPath);
+		}, [onCreateFile, currentPath]);
 
-				// Skip ignored files unless showIgnoredFiles is true
-				if (!showIgnoredFiles && isIgnored(file.path)) continue;
-
-				const parent = getParentPath(file.path);
-				const isTopLevel = parent === currentPath || parent === "";
-
-				if (isTopLevel) {
-					if (file.isDirectory) {
-						rootDirs.push(file);
-					} else {
-						rootFiles.push(file);
-					}
-				}
-			}
-
-			// Sort alphabetically (folders first already guaranteed by push order)
-			rootDirs.sort((a, b) => a.name.localeCompare(b.name));
-			rootFiles.sort((a, b) => a.name.localeCompare(b.name));
-
-			return { rootDirs, rootFiles };
-		}, [files, currentPath, isIgnored, showIgnoredFiles]);
-
-		const showDraft =
-			draft &&
-			(draft.parentDir === currentPath ||
-				(currentPath === "" && draft.parentDir === ""));
-
-		const { refreshDirectory } = useFileStore();
-
-		return (
-			<div className="animate-[fadeIn_0.1s_ease-out] justify-start space-y-0.5">
-				{/* Root level create buttons */}
+		// Memoize the context menu to prevent re-creation on every render
+		const contextMenuComponent = useMemo(
+			() => (
 				<ContextMenu>
-					<ContextMenuTrigger className="block h-8 w-full">
-						<div className="hover:!bg-neutral-700/50 flex items-center justify-between rounded-md px-2 py-1.5">
-							<span className="text-neutral-400 text-sm">Project Root</span>
-							<Button
-								variant="ghost"
-								size="icon"
-								className="h-5 w-5"
-								onClick={(e) => {
-									e.stopPropagation();
-									refreshDirectory();
-								}}
-								title="Refresh file tree"
-							>
-								<svg
-									xmlns="http://www.w3.org/2000/svg"
-									viewBox="0 0 24 24"
-									fill="none"
-									stroke="currentColor"
-									strokeWidth="2"
-									strokeLinecap="round"
-									strokeLinejoin="round"
-									className="h-3.5 w-3.5"
-								>
-									<path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8" />
-									<path d="M21 3v5h-5" />
-									<path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16" />
-									<path d="M8 16H3v5" />
-								</svg>
-							</Button>
-						</div>
+					<ContextMenuTrigger>
+						<div className="h-16 w-full" />
 					</ContextMenuTrigger>
 					<ContextMenuContent>
-						<ContextMenuItem
-							onClick={() => {
-								console.log(
-									"Root context menu - creating folder in:",
-									currentPath,
-								);
-								onCreateFolder(true, currentPath);
-							}}
-						>
+						<ContextMenuItem onClick={handleCreateFolder}>
 							<FolderPlus className="mr-2 h-4 w-4" />
 							New Folder
 						</ContextMenuItem>
-						<ContextMenuItem
-							onClick={() => {
-								console.log(
-									"Root context menu - creating file in:",
-									currentPath,
-								);
-								onCreateFile(false, currentPath);
-							}}
-						>
+						<ContextMenuItem onClick={handleCreateFile}>
 							<FilePlus className="mr-2 h-4 w-4" />
 							New File
 						</ContextMenuItem>
 					</ContextMenuContent>
 				</ContextMenu>
+			),
+			[handleCreateFolder, handleCreateFile],
+		);
 
-				{/* Show draft item at the current level */}
+		// Define the TreeNode type first to use in the selector
+		type TreeNode = {
+			children: Record<string, TreeNode>;
+			file?: FileInfo;
+		};
+
+		// Get root directories and files from the tree using a stable selector with proper types
+		// We need to use useMemo to ensure the selector function is stable
+		const selector = useMemo(
+			() => (state: { tree: TreeNode | null }) => ({
+				tree: state.tree,
+				// Don't select any other state properties that might change frequently
+			}),
+			[], // Empty dependency array means this selector function never changes
+		);
+
+		// Use the stable selector to get only the tree data
+		const { tree } = useFileStore(useShallow(selector));
+
+		// Process the tree data with useMemo to avoid recalculating on every render
+		const { rootDirs, rootFiles } = useMemo(() => {
+			// If we don't have tree data yet, return empty lists
+			if (!tree) {
+				return { rootDirs: [], rootFiles: [] };
+			}
+
+			const dirItems: FileInfo[] = [];
+			const fileItems: FileInfo[] = [];
+
+			// Loop through the root children and organize into dirs and files
+			for (const [name, node] of Object.entries(tree.children)) {
+				// Cast node to the proper type
+				const typedNode = node as TreeNode;
+
+				// Skip ignored files unless showIgnoredFiles is true
+				if (
+					typedNode.file &&
+					!showIgnoredFiles &&
+					isIgnored(typedNode.file.path)
+				) {
+					continue;
+				}
+
+				// Check if this is a top-level item in the current path
+				// For non-empty currentPath, we need to check if it's an immediate child
+				if (currentPath) {
+					// For non-root paths, the tree structure already handles this correctly
+					// We only need to check if this is an immediate child of the current path
+					const pathParts = typedNode.file?.path.split("/") || [];
+					const currentPathParts = currentPath.split("/");
+
+					// Skip if not a direct child of current path
+					if (pathParts.length !== currentPathParts.length + 1) {
+						continue;
+					}
+				}
+
+				if (typedNode.file) {
+					if (typedNode.file.isDirectory) {
+						dirItems.push(typedNode.file);
+					} else {
+						fileItems.push(typedNode.file);
+					}
+				}
+			}
+
+			// Sort alphabetically
+			dirItems.sort((a, b) => a.name.localeCompare(b.name));
+			fileItems.sort((a, b) => a.name.localeCompare(b.name));
+
+			return { rootDirs: dirItems, rootFiles: fileItems };
+		}, [tree, currentPath, showIgnoredFiles, isIgnored]);
+
+		// Check if draft is targeting the current path
+		const showDraft = draft && draft.parentDir === currentPath;
+
+		return (
+			<div className="space-y-0.5 p-2">
 				{showDraft && (
-					<div className="flex items-center gap-1 rounded-md bg-neutral-700/20 px-2 py-1.5">
-						{draft.isDirectory ? (
-							<FolderPlus className="h-4 w-4 text-amber-500" />
-						) : (
-							<FilePlus className="h-4 w-4" />
-						)}
+					<div className="flex items-center gap-1 rounded-md px-2 py-1.5">
 						<InlineEditor
 							key={`draft-${currentPath}`}
 							value={draftName}
@@ -163,7 +176,6 @@ export const FileList = memo(
 					</div>
 				)}
 
-				{/* Directories */}
 				{rootDirs.map((dir) => (
 					<DirectoryNode
 						key={dir.path}
@@ -174,9 +186,9 @@ export const FileList = memo(
 						isIgnored={isIgnored}
 						getFileStatus={getFileStatus}
 						showIgnoredFiles={showIgnoredFiles}
-						onFileClick={onFileClick}
-						onToggleSelect={onToggleSelect}
-						isSelected={isSelected}
+						onFileClick={handleFileClick}
+						onToggleSelect={toggleFileSelection}
+						isSelected={isFileSelected}
 						onCreateFile={onCreateFile}
 						onCreateFolder={onCreateFolder}
 						setRenameTarget={setRenameTarget}
@@ -188,7 +200,7 @@ export const FileList = memo(
 						cancelDraft={cancelDraft}
 					/>
 				))}
-				{/* Files */}
+
 				{rootFiles.map((file) => (
 					<FileNode
 						key={file.path}
@@ -196,18 +208,25 @@ export const FileList = memo(
 						isSelected={selectedFile?.path === file.path}
 						isIgnored={isIgnored(file.path)}
 						fileStatus={getFileStatus(file.path)}
-						onSelect={() => onFileClick(file)}
-						onToggleSelect={() => onToggleSelect(file)}
-						isChecked={isSelected(file)}
-						onDelete={() => onDeleteFile(file.path)}
+						onSelect={() => handleFileClick(file)}
+						onToggleSelect={() => toggleFileSelection(file)}
+						isChecked={
+							typeof isFileSelected === "function"
+								? isFileSelected(file)
+								: false
+						}
+						onDelete={() => useFileStore.getState().deleteFile(file.path)}
 						setRenameTarget={setRenameTarget}
 						setDraftName={setDraftName}
 						renameTarget={renameTarget}
 						draftName={draftName}
 					/>
 				))}
+
+				{!showDraft && contextMenuComponent}
 			</div>
 		);
 	},
 );
+
 FileList.displayName = "FileList";

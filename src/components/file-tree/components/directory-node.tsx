@@ -8,7 +8,11 @@ import {
 } from "@/components/ui/context-menu";
 import { getFileIcon } from "@/lib/file-utils";
 import { cn } from "@/lib/utils";
+import { useDirectoryTreeStore } from "@/store/directory-tree-store";
 import { useFileStore } from "@/store/file-store";
+import { useFileTreeStore } from "@/store/file-tree-store";
+import { selectFileTreeHandlers } from "@/store/file-tree-store";
+import type { FileInfo } from "@/types/files";
 import {
 	ChevronRight,
 	FilePlus,
@@ -18,6 +22,7 @@ import {
 	Pencil,
 } from "lucide-react";
 import { memo, useCallback, useEffect, useMemo, useState } from "react";
+import { useShallow } from "zustand/react/shallow";
 import type { DirectoryNodeProps } from "../types";
 import { FileNode } from "./file-node";
 import { InlineEditor } from "./inline-editor";
@@ -45,32 +50,68 @@ export const DirectoryNode = memo(
 		cancelDraft,
 	}: DirectoryNodeProps) => {
 		const [loading, setLoading] = useState(false);
-		const [isExpanded, setIsExpanded] = useState(false);
+		const handlers = useFileTreeStore(useShallow(selectFileTreeHandlers));
+		const { isExpanded, toggleDir } = useDirectoryTreeStore(
+			useShallow((state) => ({
+				isExpanded: state.isExpanded(directory.path),
+				toggleDir: state.toggleDir,
+			})),
+		);
+
+		// Get directory data from the tree structure
+		const dirData = useFileStore(
+			useShallow(state => {
+				// Get the directory's path segments
+				const pathParts = directory.path.split('/').filter(Boolean);
+				
+				// Start at the root of the tree
+				let node = state.tree;
+				
+				// If we're at root or tree is not available, return minimal data
+				if (pathParts.length === 0 || !node) {
+					return { 
+						node,
+						isIgnored: state.isIgnored,
+						getFileStatus: state.getFileStatus
+					};
+				}
+				
+				// Traverse the tree to find this directory's node
+				for (const part of pathParts) {
+					if (!node || !node.children[part]) {
+						return { 
+							node: null,
+							isIgnored: state.isIgnored,
+							getFileStatus: state.getFileStatus
+						};
+					}
+					node = node.children[part];
+				}
+				
+				return { 
+					node,
+					isIgnored: state.isIgnored,
+					getFileStatus: state.getFileStatus
+				};
+			})
+		);
+
+		const handleToggle = useCallback(async () => {
+			if (!isExpanded) {
+				setLoading(true);
+				try {
+					await useFileStore.getState().loadDirectoryChildren(directory.path);
+					toggleDir(directory.path);
+				} finally {
+					setLoading(false);
+				}
+			} else {
+				toggleDir(directory.path);
+			}
+		}, [directory.path, isExpanded, toggleDir]);
 
 		// Check if draft is targeting this directory
 		const showDraft = draft && draft.parentDir === directory.path;
-
-		const handleToggle = useCallback(
-			async (e?: React.SyntheticEvent) => {
-				e?.stopPropagation();
-				if (!isExpanded) {
-					setLoading(true);
-					try {
-						const fileStore = useFileStore.getState();
-						await fileStore.loadDirectoryChildren(directory.path);
-						setIsExpanded(true);
-					} catch (error) {
-						console.error("Error loading directory:", error);
-						// Don't expand on error
-					} finally {
-						setLoading(false);
-					}
-				} else {
-					setIsExpanded(false);
-				}
-			},
-			[directory.path, isExpanded],
-		);
 
 		// Auto-expand the directory if a draft is being created inside it
 		useEffect(() => {
@@ -79,17 +120,59 @@ export const DirectoryNode = memo(
 			}
 		}, [showDraft, isExpanded, handleToggle]);
 
-		// Get direct child dirs and files
+		// Get direct child dirs and files from the tree - efficient O(children) operation
 		const { childDirs, childFiles } = useMemo(() => {
+			const childDirs: FileInfo[] = [];
+			const childFiles: FileInfo[] = [];
+
+			// If we don't have tree data yet, return empty arrays
+			if (!dirData.node || !dirData.node.children) {
+				return { childDirs, childFiles };
+			}
+
+			// Extract children from the tree node
+			for (const [name, childNode] of Object.entries(dirData.node.children)) {
+				// Skip ignored files unless showIgnoredFiles is true
+				if (childNode.file && !showIgnoredFiles && dirData.isIgnored(childNode.file.path)) {
+					continue;
+				}
+				
+				if (childNode.file) {
+					if (childNode.file.isDirectory) {
+						childDirs.push(childNode.file);
+					} else {
+						childFiles.push(childNode.file);
+					}
+				}
+			}
+
+			// Sort alphabetically
+			childDirs.sort((a, b) => a.name.localeCompare(b.name));
+			childFiles.sort((a, b) => a.name.localeCompare(b.name));
+
+			return { childDirs, childFiles };
+		}, [dirData.node, dirData.isIgnored, showIgnoredFiles]);
+
+		const isRenaming = renameTarget === directory.path;
+
+		// If we don't have the tree data yet, use a fallback to keep things working
+		// This can happen during initial load or if we haven't built the tree yet
+		const shouldFallbackToLegacyMethod = !dirData.node && allFiles.length > 0;
+		
+		// Legacy method as fallback - only used if tree data is not available
+		const legacyChildrenData = useMemo(() => {
+			if (!shouldFallbackToLegacyMethod) {
+				return { childDirs: [], childFiles: [] };
+			}
+			
 			const childDirs: typeof allFiles = [];
 			const childFiles: typeof allFiles = [];
-
 			const basePathWithSlash = `${directory.path}/`;
 
 			for (const file of allFiles) {
 				if (file.path === directory.path) continue;
 				if (!file.path.startsWith(basePathWithSlash)) continue;
-
+				
 				// Skip ignored files unless showIgnoredFiles is true
 				if (!showIgnoredFiles && isIgnored(file.path)) continue;
 
@@ -123,9 +206,11 @@ export const DirectoryNode = memo(
 			childFiles.sort((a, b) => a.name.localeCompare(b.name));
 
 			return { childDirs, childFiles };
-		}, [allFiles, directory.path, isIgnored, showIgnoredFiles]);
+		}, [shouldFallbackToLegacyMethod, allFiles, directory.path, isIgnored, showIgnoredFiles]);
 
-		const isRenaming = renameTarget === directory.path;
+		// Use the appropriate data source
+		const finalChildDirs = shouldFallbackToLegacyMethod ? legacyChildrenData.childDirs : childDirs;
+		const finalChildFiles = shouldFallbackToLegacyMethod ? legacyChildrenData.childFiles : childFiles;
 
 		return (
 			<ContextMenu>
@@ -139,11 +224,11 @@ export const DirectoryNode = memo(
 							)}
 							onClick={(e) => {
 								e.stopPropagation();
-								if (!isRenaming) handleToggle(e);
+								if (!isRenaming) handleToggle();
 							}}
 							onKeyDown={(e) => {
 								if (e.key === "Enter" || e.key === " ") {
-									if (!isRenaming) handleToggle(e);
+									if (!isRenaming) handleToggle();
 								}
 							}}
 						>
@@ -223,7 +308,7 @@ export const DirectoryNode = memo(
 									</div>
 								)}
 
-								{childDirs.map((dir) => (
+								{finalChildDirs.map((dir) => (
 									<DirectoryNode
 										key={dir.path}
 										directory={dir}
@@ -247,7 +332,7 @@ export const DirectoryNode = memo(
 										cancelDraft={cancelDraft}
 									/>
 								))}
-								{childFiles.map((file) => (
+								{finalChildFiles.map((file) => (
 									<FileNode
 										key={file.path}
 										file={file}
@@ -307,6 +392,17 @@ export const DirectoryNode = memo(
 					</ContextMenuItem>
 				</ContextMenuContent>
 			</ContextMenu>
+		);
+	},
+	(prev, next) => {
+		// Optimizing memo comparison by checking exactly what matters
+		return (
+			prev.directory.path === next.directory.path &&
+			prev.allFiles === next.allFiles && 
+			prev.selectedFile?.path === next.selectedFile?.path &&
+			prev.showIgnoredFiles === next.showIgnoredFiles &&
+			prev.renameTarget === next.renameTarget &&
+			prev.draft?.parentDir === next.draft?.parentDir
 		);
 	},
 );

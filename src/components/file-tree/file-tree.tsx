@@ -3,7 +3,10 @@
 import { SelectedFilesBar } from "@/components/ide/selected-files-bar";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { useGitStatusStore } from "@/store/git-status-store";
+import { selectGitStatusUtils } from "@/store/git-status-store";
 import { Search, X } from "lucide-react";
+import { useShallow } from "zustand/react/shallow";
 import { EmptyState } from "./components/empty-state";
 import { ErrorState } from "./components/error-state";
 import { FileList } from "./components/file-list";
@@ -43,6 +46,8 @@ export function FileTree() {
 		selectedFiles,
 		clearSelectedFiles,
 	} = useFileTree();
+
+	const gitStatusUtils = useGitStatusStore(useShallow(selectGitStatusUtils));
 
 	return (
 		<div className="flex h-full flex-col">
@@ -95,29 +100,24 @@ export function FileTree() {
 						<EmptyState searchQuery={searchQuery} onClearSearch={clearSearch} />
 					) : (
 						<FileList
-							files={filteredFiles}
+							files={files}
 							selectedFile={selectedFile}
 							currentPath={currentPath}
 							isIgnored={isIgnored}
 							getFileStatus={getFileStatus}
 							showIgnoredFiles={showIgnoredFiles}
-							onFileClick={handleFileClick}
-							onToggleSelect={toggleFileSelection}
-							isSelected={isFileSelected}
-							onCreateFile={(isDirectory, parentDir) =>
-								handleCreateItem(isDirectory, parentDir)
-							}
-							onCreateFolder={(isDirectory, parentDir) =>
-								handleCreateItem(isDirectory, parentDir)
-							}
-							onDeleteFile={deleteFile}
+							handleFileClick={handleFileClick}
+							toggleFileSelection={toggleFileSelection}
+							isFileSelected={isFileSelected}
 							draft={draft}
-							renameTarget={renameTarget}
 							draftName={draftName}
-							setDraftName={setDraftName}
 							commitDraft={commitDraft}
 							cancelDraft={cancelDraft}
 							setRenameTarget={setRenameTarget}
+							setDraftName={setDraftName}
+							renameTarget={renameTarget}
+							onCreateFile={handleCreateItem}
+							onCreateFolder={handleCreateItem}
 						/>
 					)}
 				</div>

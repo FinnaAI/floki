@@ -1,3 +1,5 @@
+'use client';
+
 import { IDEHeader } from "@/components/ide/ide-header";
 import {
 	ResizableHandle,
@@ -8,6 +10,7 @@ import { useFileStore } from "@/store/file-store";
 import { useIDEStore } from "@/store/ide-store";
 import type { ReactNode } from "react";
 import { useCallback } from "react";
+import { useShallow } from 'zustand/react/shallow';
 
 export default function IDELayout({
 	children,
@@ -22,9 +25,17 @@ export default function IDELayout({
 	terminal: ReactNode;
 	agent: ReactNode;
 }) {
-	const { loadDirectory } = useFileStore.getState();
+	const { loadDirectory } = useFileStore(useShallow(state => ({
+		loadDirectory: state.loadDirectory,
+	})));
+
 	const { projects, activeProject, removeProject, setActiveProject } =
-		useIDEStore.getState();
+		useIDEStore(useShallow(state => ({
+			projects: state.projects,
+			activeProject: state.activeProject,
+			removeProject: state.removeProject,
+			setActiveProject: state.setActiveProject,
+		})));
 
 	const handleTabChange = useCallback(
 		(projectPath: string) => {

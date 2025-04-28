@@ -2,9 +2,9 @@ export interface FileInfo {
 	name: string;
 	path: string;
 	isDirectory: boolean;
-	size: number;
 	lastModified: Date;
-}
+	size: number;
+  }
 
 export interface FileDiff {
 	oldContent: string;

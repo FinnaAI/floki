@@ -1,4 +1,3 @@
-import { StatusBar } from "@/components/ide/status-bar";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { cookies } from "next/headers";
 import type { ReactNode } from "react";
@@ -12,7 +11,7 @@ export default async function IDELayout({ children }: { children: ReactNode }) {
 			<SidebarInset className="flex-1 overflow-hidden">
 				<div className="flex h-full flex-col overflow-hidden">
 					<div className="flex-1 overflow-hidden">{children}</div>
-					<StatusBar />
+					{/* <StatusBar /> */}
 				</div>
 			</SidebarInset>
 		</SidebarProvider>
