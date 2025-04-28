@@ -66,7 +66,7 @@ export const GitStatusBar: React.FC = () => {
 		gitStatus,
 		showIgnoredFiles,
 		toggleGitStatus,
-		toggleIgnoredFiles,
+		toggleShowIgnoredFiles,
 	} = useGitStatusStore();
 
 	return (
@@ -86,7 +86,7 @@ export const GitStatusBar: React.FC = () => {
 				<Button
 					variant={showIgnoredFiles ? "default" : "outline"}
 					size="sm"
-					onClick={toggleIgnoredFiles}
+					onClick={toggleShowIgnoredFiles}
 					className="h-8 rounded-full px-3"
 					title="Toggle showing ignored files"
 				>

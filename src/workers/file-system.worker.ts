@@ -15,6 +15,8 @@ interface WorkerMessage {
 let folderHandle: FileSystemDirectoryHandle | null = null;
 const fileCache = new Map<string, FileInfo>();
 let pollInterval = 2000; // Default 2 seconds
+// Map to store active watch intervals by message ID
+const watchIntervals = new Map<string, number>();
 
 // Add type for directory handle entries
 interface FileSystemDirectoryHandleWithValues
@@ -247,6 +249,13 @@ self.onmessage = async ({ data }: MessageEvent<WorkerMessage>) => {
 				break;
 			}
 
+			// Clean up any existing watcher for this message ID
+			const cleanupMessageId = `cleanup_${data.messageId}`;
+			if (watchIntervals.has(data.messageId)) {
+				clearInterval(watchIntervals.get(data.messageId));
+				watchIntervals.delete(data.messageId);
+			}
+
 			console.log("[Worker] Starting file watch for path:", data.path);
 			const watchInterval = setInterval(async () => {
 				try {
@@ -264,17 +273,23 @@ self.onmessage = async ({ data }: MessageEvent<WorkerMessage>) => {
 				}
 			}, pollInterval);
 
-			// Store interval ID for cleanup
-			const cleanupMessageId = `cleanup_${data.messageId}`;
-			self.onmessage = ({ data: stopData }: MessageEvent<WorkerMessage>) => {
-				if (
-					stopData.type === "stopWatching" &&
-					stopData.messageId === cleanupMessageId
-				) {
-					console.log("[Worker] Stopping file watch");
-					clearInterval(watchInterval);
-				}
-			};
+			// Store the interval ID
+			watchIntervals.set(data.messageId, watchInterval as unknown as number);
+			break;
+		}
+
+		case "stopWatching": {
+			if (!data.messageId) break;
+			
+			// Extract the original message ID from the cleanup message ID
+			const originalMessageId = data.messageId.startsWith("cleanup_") ? 
+				data.messageId.slice(8) : data.messageId;
+				
+			if (watchIntervals.has(originalMessageId)) {
+				console.log("[Worker] Stopping file watch for message ID:", originalMessageId);
+				clearInterval(watchIntervals.get(originalMessageId));
+				watchIntervals.delete(originalMessageId);
+			}
 			break;
 		}
 

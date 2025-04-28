@@ -1,6 +1,8 @@
 let folderHandle = null;
 const fileCache = new Map();
 let pollInterval = 2000; // Default 2 seconds
+// Map to store active watch intervals by message ID
+const watchIntervals = new Map();
 // Helper to get file info
 async function getFileInfo(entry, name, path) {
     const isDirectory = entry.kind === "directory";
@@ -192,6 +194,12 @@ self.onmessage = async ({ data }) => {
                 console.error("[Worker] Cannot watch changes - no folder or messageId");
                 break;
             }
+            // Clean up any existing watcher for this message ID
+            const cleanupMessageId = `cleanup_${data.messageId}`;
+            if (watchIntervals.has(data.messageId)) {
+                clearInterval(watchIntervals.get(data.messageId));
+                watchIntervals.delete(data.messageId);
+            }
             console.log("[Worker] Starting file watch for path:", data.path);
             const watchInterval = setInterval(async () => {
                 try {
@@ -209,15 +217,21 @@ self.onmessage = async ({ data }) => {
                     console.error("[Worker] Error watching changes:", error);
                 }
             }, pollInterval);
-            // Store interval ID for cleanup
-            const cleanupMessageId = `cleanup_${data.messageId}`;
-            self.onmessage = ({ data: stopData }) => {
-                if (stopData.type === "stopWatching" &&
-                    stopData.messageId === cleanupMessageId) {
-                    console.log("[Worker] Stopping file watch");
-                    clearInterval(watchInterval);
-                }
-            };
+            // Store the interval ID
+            watchIntervals.set(data.messageId, watchInterval);
+            break;
+        }
+        case "stopWatching": {
+            if (!data.messageId)
+                break;
+            // Extract the original message ID from the cleanup message ID
+            const originalMessageId = data.messageId.startsWith("cleanup_") ?
+                data.messageId.slice(8) : data.messageId;
+            if (watchIntervals.has(originalMessageId)) {
+                console.log("[Worker] Stopping file watch for message ID:", originalMessageId);
+                clearInterval(watchIntervals.get(originalMessageId));
+                watchIntervals.delete(originalMessageId);
+            }
             break;
         }
         case "createFile": {
@@ -366,6 +380,51 @@ self.onmessage = async ({ data }) => {
                     error: error instanceof Error
                         ? error.message
                         : "Failed to delete file/folder",
+                    messageId: data.messageId,
+                });
+            }
+            break;
+        }
+        case "writeFile": {
+            if (!folderHandle ||
+                !data.messageId ||
+                !data.path ||
+                data.content === undefined) {
+                console.error("[Worker] Cannot write file - missing parameters");
+                self.postMessage({
+                    type: "error",
+                    error: "Missing parameters for file writing",
+                    messageId: data.messageId,
+                });
+                break;
+            }
+            try {
+                // Get the directory and file name from the path
+                const pathParts = data.path.split("/");
+                const fileName = pathParts.pop() || "";
+                const dirPath = pathParts.join("/");
+                console.log("[Worker] Writing file:", fileName, "in directory:", dirPath);
+                const dirHandle = await getDirHandleFromPath(dirPath);
+                const fileHandle = await dirHandle.getFileHandle(fileName, {
+                    create: true,
+                });
+                // Write the content
+                const writable = await fileHandle.createWritable();
+                await writable.write(data.content);
+                await writable.close();
+                // Get updated file info
+                const fileInfo = await getFileInfo(fileHandle, fileName, data.path);
+                self.postMessage({
+                    type: "fileWritten",
+                    file: fileInfo,
+                    messageId: data.messageId,
+                });
+            }
+            catch (error) {
+                console.error("[Worker] Error writing file:", error);
+                self.postMessage({
+                    type: "error",
+                    error: error instanceof Error ? error.message : "Failed to write file",
                     messageId: data.messageId,
                 });
             }

@@ -1,5 +1,6 @@
 import "@/styles/globals.css";
 
+import { FileStoreInitializer } from "@/components/file-store-initializer";
 import type { Metadata } from "next";
 import { Geist } from "next/font/google";
 
@@ -19,7 +20,10 @@ export default function RootLayout({
 }: Readonly<{ children: React.ReactNode }>) {
 	return (
 		<html lang="en" className={`${geist.variable}`}>
-			<body className="dark">{children}</body>
+			<body className="dark">
+				<FileStoreInitializer />
+				{children}
+			</body>
 		</html>
 	);
 }

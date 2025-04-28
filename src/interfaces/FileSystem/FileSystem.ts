@@ -30,7 +30,9 @@ export interface BaseFileSystem {
 // Web-specific interface
 export interface WebFileSystem extends BaseFileSystem {
 	folderHandle: FileSystemDirectoryHandle | null;
+	setFolderHandle(handle: FileSystemDirectoryHandle): Promise<void>;
 	openFolder: () => Promise<FileSystemDirectoryHandle>;
+	watchChanges(path: string, callback: (changes: FileInfo[]) => void): () => void;
 }
 
 // Electron-specific interface

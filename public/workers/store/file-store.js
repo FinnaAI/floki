@@ -4,6 +4,13 @@ import { useFileTreeStore } from "@/store/file-tree-store";
 import { useIDEStore } from "@/store/ide-store";
 import { create } from "zustand";
 import { useGitStatusStore } from "./git-status-store";
+// Helper to get parent path
+const getParentPath = (filePath) => {
+    const idx = filePath.lastIndexOf("/");
+    if (idx === -1)
+        return "";
+    return filePath.substring(0, idx);
+};
 // Create file system instance
 const fileSystem = createFileSystem();
 // Type guard for WebFileSystem
@@ -28,10 +35,22 @@ export const useFileStore = create((set, get) => ({
     selectedFiles: [],
     hasInitialized: false,
     needsDirectoryPermission: false,
+    fileWatchEnabled: true,
+    fileWatcherCleanup: null,
     projectHandles: {},
     projectStates: {},
     // Basic setters
-    setFiles: (files) => set({ files }),
+    setFiles: (files) => {
+        set({ files });
+        // Start file watching if enabled and not already watching
+        const state = get();
+        if (state.fileWatchEnabled &&
+            state.currentPath &&
+            !state.fileWatcherCleanup &&
+            isWebFileSystem(fileSystem)) {
+            state.watchDirectory(state.currentPath);
+        }
+    },
     setFilteredFiles: (files) => set({ filteredFiles: files }),
     setCurrentPath: (path) => set({ currentPath: path }),
     setSelectedFile: (file) => set({ selectedFile: file }),
@@ -58,8 +77,9 @@ export const useFileStore = create((set, get) => ({
     setPathForward: (forward) => set({ pathForward: forward }),
     setInitialized: (initialized) => set({ hasInitialized: initialized }),
     setNeedsDirectoryPermission: (needs) => set({ needsDirectoryPermission: needs }),
+    setFileWatchEnabled: (enabled) => set({ fileWatchEnabled: enabled }),
     // Action to load a directory
-    loadDirectory: async (dirPath, addToHistory = true) => {
+    loadDirectory: async (dirPath, addToHistory = true, forceRefresh = false) => {
         const state = get();
         const { currentPath, files, directoryLoading } = state;
         const gitStore = useGitStatusStore.getState();
@@ -74,7 +94,7 @@ export const useFileStore = create((set, get) => ({
         if (dirPath === "" && currentPath === "" && !state.hasInitialized) {
             console.log("Initial load at root");
         }
-        else if (dirPath === currentPath && !directoryLoading) {
+        else if (dirPath === currentPath && !directoryLoading && !forceRefresh) {
             console.log("Skipping reload of same directory:", dirPath);
             return;
         }
@@ -128,6 +148,10 @@ export const useFileStore = create((set, get) => ({
             }
             // Update file tree store's filtered files
             useFileTreeStore.getState().setFilteredFiles(files);
+            // Start watching the directory for changes if enabled
+            if (state.fileWatchEnabled) {
+                state.watchDirectory(dirPath);
+            }
         }
         catch (err) {
             console.error("Error loading directory:", err);
@@ -142,6 +166,26 @@ export const useFileStore = create((set, get) => ({
     loadFileContent: async (fileInfo) => {
         const state = get();
         const gitStore = useGitStatusStore.getState();
+        // Check if we need to save the current file before switching
+        if (state.selectedFile && state.selectedFile.path !== fileInfo.path) {
+            // Attempt to get editor content from window if available
+            try {
+                // Use a safer approach to access Monaco editor
+                const editorElement = document.querySelector("[data-monaco-editor-id]");
+                if (editorElement) {
+                    // Use type assertion with a more specific type
+                    const editorInstance = editorElement?._modelData?.viewModel?.editor;
+                    if (editorInstance && typeof editorInstance.getValue === "function") {
+                        const currentContent = editorInstance.getValue();
+                        // Save the current file before loading the new one
+                        await state.saveFileContent(state.selectedFile.path, currentContent);
+                    }
+                }
+            }
+            catch (err) {
+                console.error("Error saving previous file:", err);
+            }
+        }
         // Make sure we're using the correct folder handle before any file operation
         const syncHandle = () => {
             const activeProject = useIDEStore.getState().activeProject;
@@ -284,7 +328,19 @@ export const useFileStore = create((set, get) => ({
     // Reload current directory
     refreshDirectory: () => {
         const { currentPath, loadDirectory } = get();
-        loadDirectory(currentPath, false);
+        // First, if we're in a sub-directory, also refresh the parent directory
+        if (currentPath) {
+            const parentPath = getParentPath(currentPath);
+            if (parentPath && parentPath !== currentPath) {
+                console.log("Refreshing parent directory:", parentPath);
+                // Load parent directory content if needed
+                const fileStore = get();
+                fileStore.loadDirectoryChildren(parentPath, true);
+            }
+        }
+        console.log("Refreshing current directory:", currentPath);
+        // Now refresh the current directory - force reload by passing forceRefresh=true
+        loadDirectory(currentPath, false, true);
     },
     // Get breadcrumbs for navigation
     getBreadcrumbs: () => {
@@ -338,14 +394,23 @@ export const useFileStore = create((set, get) => ({
     clearSelectedFiles: () => {
         set({ selectedFiles: [] });
     },
-    // Add new method to handle folder opening
+    // Update the openFolder method to save the handle to IndexedDB
     openFolder: async () => {
         try {
             if (isWebFileSystem(fileSystem)) {
                 const handle = await fileSystem.openFolder();
                 if (handle) {
                     set({ needsDirectoryPermission: false });
+                    // Request persistent permission for this directory handle
+                    await get().persistDirectoryPermission(handle);
+                    // Save handle to IndexedDB for persistence between sessions
+                    await get().saveDirectoryHandleToIndexedDB(handle, handle.name);
                     await get().loadDirectory("", true);
+                    // Start watching if enabled
+                    const state = get();
+                    if (state.fileWatchEnabled) {
+                        state.watchDirectory("");
+                    }
                     return handle;
                 }
             }
@@ -361,13 +426,17 @@ export const useFileStore = create((set, get) => ({
             return undefined;
         }
     },
-    // Add new method to handle project opening
+    // Update the openNewProject method to save the handle to IndexedDB
     openNewProject: async () => {
         try {
             if (isWebFileSystem(fileSystem)) {
                 const handle = await fileSystem.openFolder();
                 if (handle) {
                     const projectPath = handle.name;
+                    // Request persistent permission for this directory handle
+                    await get().persistDirectoryPermission(handle);
+                    // Save handle to IndexedDB for persistence between sessions
+                    await get().saveDirectoryHandleToIndexedDB(handle, projectPath);
                     // Store handle mapping (in-memory, not persisted)
                     set((state) => ({
                         projectHandles: { ...state.projectHandles, [projectPath]: handle },
@@ -410,6 +479,8 @@ export const useFileStore = create((set, get) => ({
                 },
             }));
         }
+        // Stop any active file watchers
+        get().stopWatching();
         // First update the active project in IDE store
         useIDEStore.getState().setActiveProject(projectPath);
         const handle = projectHandles[projectPath];
@@ -448,11 +519,11 @@ export const useFileStore = create((set, get) => ({
             await get().loadDirectory("", true);
         }
     },
-    loadDirectoryChildren: async (dirPath) => {
+    loadDirectoryChildren: async (dirPath, forceRefresh = false) => {
         const { files, setFiles, setFilteredFiles } = get();
-        // Prevent duplicate fetch if we already have children for dirPath
+        // Prevent duplicate fetch if we already have children for dirPath, unless forceRefresh is true
         const alreadyLoaded = files.some((f) => f.path.startsWith(`${dirPath}/`) && f.path !== dirPath);
-        if (alreadyLoaded)
+        if (alreadyLoaded && !forceRefresh)
             return;
         try {
             // Fetch direct children (non-recursive)
@@ -482,7 +553,7 @@ export const useFileStore = create((set, get) => ({
             });
         }
     },
-    // Initialize project on startup
+    // Update initializeProject method to load handles from IndexedDB first
     initializeProject: async () => {
         const ideStore = useIDEStore.getState();
         const activeProject = ideStore.activeProject;
@@ -491,16 +562,30 @@ export const useFileStore = create((set, get) => ({
             set({ loading: false, directoryLoading: false });
             return;
         }
-        // For web, handle directory permission
+        // First, try to load handles from IndexedDB
+        await get().loadDirectoryHandlesFromIndexedDB();
         try {
             // If we already have a handle for this project, use it
             const existingHandle = get().projectHandles[activeProject];
             if (existingHandle) {
-                fileSystem.folderHandle = existingHandle;
-                await get().loadDirectory("", true);
-                return;
+                // Update file system handle and ensure worker gets it
+                if (isWebFileSystem(fileSystem)) {
+                    await fileSystem.setFolderHandle(existingHandle);
+                }
+                // Check if we still have permission
+                const hasPermission = await get().persistDirectoryPermission(existingHandle);
+                if (hasPermission) {
+                    set({ needsDirectoryPermission: false });
+                    await get().loadDirectory("", true);
+                    // Start watching if enabled
+                    const state = get();
+                    if (state.fileWatchEnabled && isWebFileSystem(fileSystem)) {
+                        state.watchDirectory("");
+                    }
+                    return;
+                }
             }
-            // Otherwise, mark that we need permission
+            // If we get here, either we don't have a handle or permission was denied
             set({
                 needsDirectoryPermission: true,
                 loading: false,
@@ -513,6 +598,7 @@ export const useFileStore = create((set, get) => ({
                 error: err instanceof Error ? err.message : "Failed to initialize project",
                 loading: false,
                 directoryLoading: false,
+                needsDirectoryPermission: true,
             });
         }
     },
@@ -536,8 +622,29 @@ export const useFileStore = create((set, get) => ({
                 throw new Error(error.error || "Failed to create file");
             }
             // Success - reload the directory to show the new file
-            const { loadDirectory } = get();
-            await loadDirectory(parentDir, false);
+            console.log("File created successfully:", fullPath);
+            // Add the new file to our files list immediately so UI updates
+            const newFileInfo = {
+                name: fileName,
+                path: fullPath,
+                isDirectory: false,
+                lastModified: new Date(),
+                size: 0,
+            };
+            set((state) => {
+                // Add to existing files if not already there
+                const fileExists = state.files.some((f) => f.path === fullPath);
+                if (!fileExists) {
+                    return {
+                        files: [...state.files, newFileInfo],
+                        filteredFiles: [...state.filteredFiles, newFileInfo],
+                    };
+                }
+                return state;
+            });
+            // Now reload directories
+            const { refreshDirectory } = get();
+            refreshDirectory();
         }
         catch (error) {
             console.error("Error creating file:", error);
@@ -564,8 +671,29 @@ export const useFileStore = create((set, get) => ({
                 throw new Error(error.error || "Failed to create folder");
             }
             // Success - reload the directory to show the new folder
-            const { loadDirectory } = get();
-            await loadDirectory(parentDir, false);
+            console.log("Folder created successfully:", fullPath);
+            // Add the new folder to our files list immediately so UI updates
+            const newFolderInfo = {
+                name: folderName,
+                path: fullPath,
+                isDirectory: true,
+                lastModified: new Date(),
+                size: 0,
+            };
+            set((state) => {
+                // Add to existing files if not already there
+                const folderExists = state.files.some((f) => f.path === fullPath);
+                if (!folderExists) {
+                    return {
+                        files: [...state.files, newFolderInfo],
+                        filteredFiles: [...state.filteredFiles, newFolderInfo],
+                    };
+                }
+                return state;
+            });
+            // Now reload directories
+            const { refreshDirectory } = get();
+            refreshDirectory();
         }
         catch (error) {
             console.error("Error creating folder:", error);
@@ -648,6 +776,224 @@ export const useFileStore = create((set, get) => ({
         catch (error) {
             console.error("Error renaming item:", error);
             throw error;
+        }
+    },
+    saveFileContent: async (filePath, content) => {
+        const state = get();
+        set({ fileLoading: true, error: null });
+        try {
+            // Make sure we're using the correct folder handle
+            const syncHandle = () => {
+                const activeProject = useIDEStore.getState().activeProject;
+                if (!activeProject)
+                    return;
+                const handle = get().projectHandles[activeProject];
+                if (!handle) {
+                    console.error(`Handle not found for active project: ${activeProject}`);
+                    return;
+                }
+                // Update file system handle
+                console.log(`Syncing file system handle to match active project: ${activeProject}`);
+                fileSystem.folderHandle = handle;
+            };
+            syncHandle();
+            // Write the file content
+            await fileSystem.writeFile(filePath, content);
+            // Update the store's file content
+            set({
+                fileContent: content,
+                fileLoading: false,
+                error: null,
+            });
+            // Refresh git status if available
+            const gitStore = useGitStatusStore.getState();
+            if (gitStore.showGitStatus) {
+                await gitStore.fetchGitStatus();
+            }
+        }
+        catch (err) {
+            console.error("Error saving file:", err);
+            set({
+                error: err instanceof Error ? err.message : "Failed to save file",
+                fileLoading: false,
+            });
+        }
+    },
+    // Request persistent storage to help with permissions
+    requestPersistentStorage: async () => {
+        // Check if the browser supports persistent storage
+        if (!navigator.storage || !navigator.storage.persist) {
+            console.log("Persistent storage not supported by browser");
+            return false;
+        }
+        // Request persistent storage
+        const isPersisted = await navigator.storage.persist();
+        console.log(`Persistent storage granted: ${isPersisted}`);
+        return isPersisted;
+    },
+    // Request persistent permissions for a directory handle
+    persistDirectoryPermission: async (handle) => {
+        try {
+            // First request persistent storage to ensure file handles can be stored
+            await get().requestPersistentStorage();
+            // Check if we already have permission
+            const options = { mode: "readwrite" };
+            const existingPermission = await handle.requestPermission(options);
+            if (existingPermission === "granted") {
+                console.log("Already have persistent permission for directory:", handle.name);
+                return true;
+            }
+            // If not granted, request new permission
+            const permission = await handle.requestPermission(options);
+            if (permission === "granted") {
+                console.log("Persistent permission granted for directory:", handle.name);
+                return true;
+            }
+            console.log("Failed to get persistent permission for directory");
+            return false;
+        }
+        catch (err) {
+            console.error("Error persisting directory permission:", err);
+            return false;
+        }
+    },
+    watchDirectory: (dirPath) => {
+        const state = get();
+        // Only web file system supports watching
+        if (!isWebFileSystem(fileSystem) || !state.fileWatchEnabled) {
+            return;
+        }
+        // Check if watchChanges method exists on the file system
+        if (typeof fileSystem.watchChanges !== "function") {
+            console.error("File system doesn't support watching for changes");
+            return;
+        }
+        // Clean up any existing watcher first
+        state.stopWatching();
+        try {
+            console.log("Starting file watcher for directory:", dirPath);
+            const cleanup = fileSystem.watchChanges(dirPath, (changedFiles) => {
+                console.log("Files changed on disk:", changedFiles);
+                // Check if any of the changed files are relevant to current view
+                const isRelevantChange = changedFiles.some((file) => {
+                    // Check if the file is in current directory
+                    const fileDir = getParentPath(file.path);
+                    return (fileDir === state.currentPath ||
+                        // Or is the currently selected file
+                        (state.selectedFile && file.path === state.selectedFile.path) ||
+                        // Or is a parent directory of current path
+                        state.currentPath.startsWith(`${file.path}/`));
+                });
+                if (isRelevantChange) {
+                    console.log("Refreshing directory due to relevant file changes");
+                    state.refreshDirectory();
+                    // Also reload the file content if the changed file is currently selected
+                    const selectedFile = state.selectedFile;
+                    if (selectedFile) {
+                        const changedSelectedFile = changedFiles.find((f) => f.path === selectedFile.path);
+                        if (changedSelectedFile) {
+                            state.loadFileContent(selectedFile);
+                        }
+                    }
+                }
+            });
+            // Store the cleanup function
+            if (cleanup) {
+                set({ fileWatcherCleanup: cleanup });
+            }
+        }
+        catch (err) {
+            console.error("Error setting up file watcher:", err);
+        }
+    },
+    stopWatching: () => {
+        const cleanup = get().fileWatcherCleanup;
+        if (cleanup && typeof cleanup === "function") {
+            console.log("Stopping file watcher");
+            cleanup();
+            set({ fileWatcherCleanup: null });
+        }
+    },
+    // Add a method to save directory handles to IndexedDB
+    saveDirectoryHandleToIndexedDB: async (handle, projectPath) => {
+        try {
+            if (!window.indexedDB) {
+                console.log("IndexedDB not supported by browser");
+                return false;
+            }
+            // Open (or create) the database
+            const dbPromise = indexedDB.open("floki-directory-handles", 1);
+            // Create object store if it doesn't exist
+            dbPromise.onupgradeneeded = (event) => {
+                const db = event.target.result;
+                if (!db.objectStoreNames.contains("handles")) {
+                    db.createObjectStore("handles", { keyPath: "path" });
+                }
+            };
+            // Once the database is open, store the handle
+            const db = await new Promise((resolve, reject) => {
+                dbPromise.onsuccess = () => resolve(dbPromise.result);
+                dbPromise.onerror = () => reject(dbPromise.error);
+            });
+            const transaction = db.transaction("handles", "readwrite");
+            const store = transaction.objectStore("handles");
+            // Store the handle with the project path as key
+            await new Promise((resolve, reject) => {
+                const request = store.put({ path: projectPath, handle });
+                request.onsuccess = () => resolve();
+                request.onerror = () => reject(request.error);
+            });
+            db.close();
+            console.log(`Directory handle for ${projectPath} saved to IndexedDB`);
+            return true;
+        }
+        catch (err) {
+            console.error("Error saving directory handle to IndexedDB:", err);
+            return false;
+        }
+    },
+    // Add a method to load directory handles from IndexedDB
+    loadDirectoryHandlesFromIndexedDB: async () => {
+        try {
+            if (!window.indexedDB) {
+                console.log("IndexedDB not supported by browser");
+                return;
+            }
+            // Open the database
+            const dbPromise = indexedDB.open("floki-directory-handles", 1);
+            // Handle database opening
+            const db = await new Promise((resolve, reject) => {
+                dbPromise.onsuccess = () => resolve(dbPromise.result);
+                dbPromise.onerror = () => reject(dbPromise.error);
+                // Create the object store if needed
+                dbPromise.onupgradeneeded = (event) => {
+                    const db = event.target.result;
+                    if (!db.objectStoreNames.contains("handles")) {
+                        db.createObjectStore("handles", { keyPath: "path" });
+                    }
+                };
+            });
+            // Get all stored handles
+            const transaction = db.transaction("handles", "readonly");
+            const store = transaction.objectStore("handles");
+            const storedHandles = await new Promise((resolve, reject) => {
+                const request = store.getAll();
+                request.onsuccess = () => resolve(request.result);
+                request.onerror = () => reject(request.error);
+            });
+            // Update the project handles in the store
+            if (storedHandles.length > 0) {
+                const projectHandles = {};
+                for (const { path, handle } of storedHandles) {
+                    projectHandles[path] = handle;
+                }
+                set({ projectHandles });
+                console.log(`Loaded ${storedHandles.length} directory handles from IndexedDB`);
+            }
+            db.close();
+        }
+        catch (err) {
+            console.error("Error loading directory handles from IndexedDB:", err);
         }
     },
 }));

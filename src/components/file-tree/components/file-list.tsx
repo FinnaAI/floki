@@ -79,6 +79,8 @@ export const FileList = memo(
 			(draft.parentDir === currentPath ||
 				(currentPath === "" && draft.parentDir === ""));
 
+		const { refreshDirectory } = useFileStore();
+
 		return (
 			<div className="animate-[fadeIn_0.1s_ease-out] justify-start space-y-0.5">
 				{/* Root level create buttons */}
@@ -92,7 +94,7 @@ export const FileList = memo(
 								className="h-5 w-5"
 								onClick={(e) => {
 									e.stopPropagation();
-									useFileStore.getState().refreshDirectory();
+									refreshDirectory();
 								}}
 								title="Refresh file tree"
 							>

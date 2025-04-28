@@ -3,8 +3,21 @@ import { useFileStore } from "@/store/file-store";
 import { create } from "zustand";
 // Global interval storage
 let gitStatusPollIntervalId = null;
+// Constants
+const IGNORED_PATTERNS = [
+    ".git",
+    "node_modules",
+    ".next",
+    "dist",
+    "build",
+    ".DS_Store",
+    "*.log",
+    "*.swp",
+];
 // Worker instance will be stored here
 let gitStatusWorker = null;
+// Unload listener reference
+let unloadListener = null;
 // Worker initialization function
 const initWorker = (get) => {
     if (typeof window === "undefined" || gitStatusWorker)
@@ -20,29 +33,26 @@ const initWorker = (get) => {
             if (e.filename?.includes("git-status.worker.js")) {
                 console.error("[GitStore] Worker failed to load:", e.message);
                 // Only set up fallback if worker fails to load
-                setTimeout(() => {
-                    if (!gitStatusWorker) {
-                        get().setupFallbackPolling();
-                    }
-                }, 1000);
+                get().setupFallbackPolling();
             }
         }, { once: true });
         return gitStatusWorker;
     }
     catch (error) {
         console.error("[GitStore] Failed to initialize worker:", error);
-        // Only set up fallback if worker init fails
-        setTimeout(() => {
-            if (!gitStatusWorker) {
-                get().setupFallbackPolling();
-            }
-        }, 1000);
+        // Set up fallback polling immediately if worker init fails
+        get().setupFallbackPolling();
         return null;
     }
 };
 export const useGitStatusStore = create((set, get) => {
     // Initialize worker if we're in the browser
     if (typeof window !== "undefined") {
+        // Add unload listener
+        if (!unloadListener) {
+            unloadListener = () => get().cleanup();
+            window.addEventListener("beforeunload", unloadListener);
+        }
         // Pass get to initWorker
         const worker = initWorker(get);
         if (worker) {
@@ -56,9 +66,7 @@ export const useGitStatusStore = create((set, get) => {
                     console.error("[GitStore] Worker reported error:", error);
                     set({ error, gitStatus: null });
                     // If we get a worker error, fall back to polling
-                    setTimeout(() => {
-                        get().setupFallbackPolling();
-                    }, 1000);
+                    get().setupFallbackPolling();
                 }
             };
             worker.onerror = (error) => {
@@ -69,16 +77,12 @@ export const useGitStatusStore = create((set, get) => {
                     isPolling: false,
                 });
                 // If worker fails, fall back to polling
-                setTimeout(() => {
-                    get().setupFallbackPolling();
-                }, 1000);
+                get().setupFallbackPolling();
             };
         }
         else {
             // If worker initialization fails, set up polling as fallback
-            setTimeout(() => {
-                get().setupFallbackPolling();
-            }, 1000);
+            get().setupFallbackPolling();
         }
     }
     return {
@@ -109,6 +113,10 @@ export const useGitStatusStore = create((set, get) => {
                     gitStatusWorker.postMessage({ type: "stopPolling" });
                     set({ isPolling: false, gitStatus: null });
                 }
+            }
+            else if (newShowStatus) {
+                // No worker available, fall back to polling
+                get().setupFallbackPolling();
             }
         },
         setCurrentPath: (path) => {
@@ -219,22 +227,11 @@ export const useGitStatusStore = create((set, get) => {
             return "";
         },
         isIgnored: (filePath) => {
-            // Simple implementation for now - can be expanded to use .gitignore rules
-            const ignoredPatterns = [
-                ".git",
-                "node_modules",
-                ".next",
-                "dist",
-                "build",
-                ".DS_Store",
-                "*.log",
-                "*.swp",
-            ];
             const fileName = path.basename(filePath);
             const relativePath = filePath
                 .replace(get().currentPath, "")
                 .replace(/^\//, "");
-            return ignoredPatterns.some((pattern) => {
+            return IGNORED_PATTERNS.some((pattern) => {
                 if (pattern.includes("*")) {
                     const regex = new RegExp(`^${pattern.replace("*", ".*")}$`);
                     return regex.test(fileName);
@@ -279,7 +276,7 @@ export const useGitStatusStore = create((set, get) => {
                 console.error("[GitStore] Error fetching git status:", error);
                 const errorMessage = error instanceof Error ? error.message : "Failed to fetch git status";
                 set({
-                    error: errorMessage,
+                    error: "Failed to fetch git status",
                     gitStatus: null,
                 });
                 return null;
@@ -297,6 +294,11 @@ export const useGitStatusStore = create((set, get) => {
                 console.log("[GitStore] Clearing polling interval");
                 clearInterval(gitStatusPollIntervalId);
                 gitStatusPollIntervalId = null;
+            }
+            // Remove event listener
+            if (unloadListener) {
+                window.removeEventListener("beforeunload", unloadListener);
+                unloadListener = null;
             }
             set({ isPolling: false, gitStatus: null });
         },
@@ -320,19 +322,6 @@ export const useGitStatusStore = create((set, get) => {
                 }
             }, pollInterval);
             set({ isPolling: true });
-            // Clean up on window unload
-            window.addEventListener("beforeunload", () => {
-                if (gitStatusPollIntervalId !== null) {
-                    clearInterval(gitStatusPollIntervalId);
-                    gitStatusPollIntervalId = null;
-                }
-            }, { once: true });
         },
     };
 });
-// Cleanup on page unload
-if (typeof window !== "undefined") {
-    window.addEventListener("beforeunload", () => {
-        useGitStatusStore.getState().cleanup();
-    });
-}

@@ -4,22 +4,30 @@ class WebFileSystem {
     worker = null;
     constructor() {
         if (typeof window !== "undefined") {
-            this.worker = new Worker("/workers/workers/file-system.worker.js", {
-                type: "module",
+            try {
+                this.worker = new Worker("/workers/workers/file-system.worker.js", {
+                    type: "module",
+                });
+            }
+            catch (e) {
+                console.error("Failed to create file system worker:", e);
+            }
+        }
+    }
+    async setFolderHandle(handle) {
+        this.folderHandle = handle;
+        if (this.worker) {
+            this.worker.postMessage({
+                type: "setFolder",
+                handle,
+                messageId: "initial",
             });
         }
     }
     async openFolder() {
         try {
             const handle = await window.showDirectoryPicker();
-            this.folderHandle = handle;
-            if (this.worker) {
-                this.worker.postMessage({
-                    type: "setFolder",
-                    handle,
-                    messageId: "initial",
-                });
-            }
+            await this.setFolderHandle(handle);
             return handle;
         }
         catch (error) {
@@ -261,125 +269,207 @@ class WebFileSystem {
 }
 class ElectronFileSystem {
     currentPath = null;
-    worker = null;
     constructor() {
-        if (typeof window !== "undefined") {
-            this.worker = new Worker("/workers/workers/file-system.worker.js", {
-                type: "module",
-            });
-        }
+        // No worker needed for Electron - we'll use IPC directly
+        console.log("ElectronFileSystem initialized");
     }
     setPath(path) {
         this.currentPath = path;
-        this.worker?.postMessage({
-            type: "setFolder",
-            path,
-            messageId: "initial",
-        });
+        console.log("Set current path to:", path);
     }
     async openFolder() {
         if (!window.electron?.openFolder) {
             throw new Error("Electron API not available");
         }
-        const result = await window.electron.openFolder();
-        if (result.filePaths?.[0]) {
-            this.setPath(result.filePaths[0]);
-            return result.filePaths[0];
+        try {
+            const result = await window.electron.openFolder();
+            if (result.filePaths?.[0]) {
+                this.setPath(result.filePaths[0]);
+                return result.filePaths[0];
+            }
+            return null;
         }
-        return null;
+        catch (err) {
+            console.error("Error opening folder:", err);
+            throw err;
+        }
     }
     async listFiles(dirPath, recursive = false) {
-        return this.sendWorkerMessage("listFiles", {
-            path: dirPath,
-            recursive,
-        });
+        try {
+            if (!window.electron?.fileSystem) {
+                throw new Error("Electron API not available");
+            }
+            const fullPath = this.getFullPath(dirPath);
+            console.log("Listing files in path:", fullPath);
+            const files = await window.electron.fileSystem.listFiles(fullPath, recursive);
+            return files;
+        }
+        catch (err) {
+            console.error("Error listing files:", err);
+            throw err;
+        }
     }
     async readFile(path) {
-        return this.sendWorkerMessage("readFile", { path });
+        try {
+            if (!window.electron?.fileSystem) {
+                throw new Error("Electron API not available");
+            }
+            const fullPath = this.getFullPath(path);
+            const result = await window.electron.fileSystem.readFile(fullPath);
+            return result;
+        }
+        catch (err) {
+            console.error("Error reading file:", err);
+            throw err;
+        }
     }
     async writeFile(path, content) {
-        return this.sendWorkerMessage("writeFile", { path, content });
+        try {
+            if (!window.electron?.fileSystem) {
+                throw new Error("Electron API not available");
+            }
+            const fullPath = this.getFullPath(path);
+            await window.electron.fileSystem.writeFile(fullPath, content);
+        }
+        catch (err) {
+            console.error("Error writing file:", err);
+            throw err;
+        }
     }
-    async deleteFile(filePath) {
-        return this.sendWorkerMessage("deleteFile", { path: filePath });
+    async deleteFile(path) {
+        try {
+            if (!window.electron?.fileSystem) {
+                throw new Error("Electron API not available");
+            }
+            const fullPath = this.getFullPath(path);
+            await window.electron.fileSystem.deleteFile(fullPath);
+        }
+        catch (err) {
+            console.error("Error deleting file:", err);
+            throw err;
+        }
     }
     async createDirectory(dirPath) {
-        return this.sendWorkerMessage("createDirectory", { path: dirPath });
+        try {
+            if (!window.electron?.fileSystem) {
+                throw new Error("Electron API not available");
+            }
+            const fullPath = this.getFullPath(dirPath);
+            await window.electron.fileSystem.createDirectory(fullPath);
+        }
+        catch (err) {
+            console.error("Error creating directory:", err);
+            throw err;
+        }
     }
     async deleteDirectory(dirPath) {
-        return this.sendWorkerMessage("deleteDirectory", { path: dirPath });
+        try {
+            if (!window.electron?.fileSystem) {
+                throw new Error("Electron API not available");
+            }
+            const fullPath = this.getFullPath(dirPath);
+            await window.electron.fileSystem.deleteDirectory(fullPath);
+        }
+        catch (err) {
+            console.error("Error deleting directory:", err);
+            throw err;
+        }
     }
     async moveFile(oldPath, newPath) {
-        return this.sendWorkerMessage("moveFile", { oldPath, newPath });
+        try {
+            if (!window.electron?.fileSystem) {
+                throw new Error("Electron API not available");
+            }
+            const fullOldPath = this.getFullPath(oldPath);
+            const fullNewPath = this.getFullPath(newPath);
+            await window.electron.fileSystem.moveFile(fullOldPath, fullNewPath);
+        }
+        catch (err) {
+            console.error("Error moving file:", err);
+            throw err;
+        }
     }
     async copyFile(sourcePath, destPath) {
-        return this.sendWorkerMessage("copyFile", { sourcePath, destPath });
+        try {
+            if (!window.electron?.fileSystem) {
+                throw new Error("Electron API not available");
+            }
+            const fullSourcePath = this.getFullPath(sourcePath);
+            const fullDestPath = this.getFullPath(destPath);
+            await window.electron.fileSystem.copyFile(fullSourcePath, fullDestPath);
+        }
+        catch (err) {
+            console.error("Error copying file:", err);
+            throw err;
+        }
     }
     async exists(path) {
-        return this.sendWorkerMessage("exists", { path });
+        try {
+            if (!window.electron?.fileSystem) {
+                throw new Error("Electron API not available");
+            }
+            const fullPath = this.getFullPath(path);
+            return await window.electron.fileSystem.exists(fullPath);
+        }
+        catch (err) {
+            console.error("Error checking if file exists:", err);
+            throw err;
+        }
     }
     async isDirectory(path) {
-        return this.sendWorkerMessage("isDirectory", { path });
+        try {
+            if (!window.electron?.fileSystem) {
+                throw new Error("Electron API not available");
+            }
+            const fullPath = this.getFullPath(path);
+            return await window.electron.fileSystem.isDirectory(fullPath);
+        }
+        catch (err) {
+            console.error("Error checking if path is directory:", err);
+            throw err;
+        }
     }
     async getFileInfo(path) {
-        return this.sendWorkerMessage("getFileInfo", { path });
+        try {
+            if (!window.electron?.fileSystem) {
+                throw new Error("Electron API not available");
+            }
+            const fullPath = this.getFullPath(path);
+            return await window.electron.fileSystem.getFileInfo(fullPath);
+        }
+        catch (err) {
+            console.error("Error getting file info:", err);
+            throw err;
+        }
     }
     watchChanges(path, callback) {
-        if (!this.worker) {
-            throw new Error("Worker not initialized");
+        if (!window.electron?.fileSystem) {
+            throw new Error("Electron API not available");
         }
-        const messageId = Math.random().toString(36).substring(7);
-        const handler = (event) => {
-            const { type, changes } = event.data;
-            if (type === "changes") {
-                callback(changes);
-            }
-        };
-        this.worker.addEventListener("message", handler);
-        this.worker.postMessage({
-            type: "watchChanges",
-            path,
-            messageId,
-        });
-        return () => {
-            this.worker?.removeEventListener("message", handler);
-            this.worker?.postMessage({
-                type: "stopWatching",
-                messageId: `cleanup_${messageId}`,
-            });
-        };
+        const fullPath = this.getFullPath(path);
+        const unwatchFn = window.electron.fileSystem.watchChanges(fullPath, callback);
+        return unwatchFn;
     }
-    sendWorkerMessage(type, data) {
-        return new Promise((resolve, reject) => {
-            if (!this.worker) {
-                reject(new Error("Worker not initialized"));
-                return;
-            }
-            const messageId = Math.random().toString(36).substring(7);
-            const handler = (event) => {
-                const { type: responseType, data: responseData, error, messageId: responseId, } = event.data;
-                if (responseId !== messageId)
-                    return;
-                this.worker?.removeEventListener("message", handler);
-                if (responseType === "error") {
-                    reject(new Error(error));
-                }
-                else {
-                    resolve(responseData);
-                }
-            };
-            this.worker.addEventListener("message", handler);
-            this.worker.postMessage({
-                type,
-                ...data,
-                messageId,
-            });
-        });
+    // Helper for path resolution
+    getFullPath(relativePath) {
+        if (!this.currentPath) {
+            throw new Error("No current path set");
+        }
+        if (!relativePath)
+            return this.currentPath;
+        // If relativePath is already absolute (starts with / on Unix or C:\ on Windows)
+        if (relativePath.startsWith("/") || /^[A-Z]:\\/.test(relativePath)) {
+            return relativePath;
+        }
+        // Combine paths
+        return `${this.currentPath}/${relativePath}`;
     }
 }
 export function createFileSystem() {
     if (isElectron()) {
+        console.log("Creating Electron file system");
         return new ElectronFileSystem();
     }
+    console.log("Creating Web file system");
     return new WebFileSystem();
 }

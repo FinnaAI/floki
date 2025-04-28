@@ -21,19 +21,21 @@ class WebFileSystem implements IWebFileSystem {
 		}
 	}
 
+	async setFolderHandle(handle: FileSystemDirectoryHandle) {
+		this.folderHandle = handle;
+		if (this.worker) {
+			this.worker.postMessage({
+				type: "setFolder",
+				handle,
+				messageId: "initial",
+			});
+		}
+	}
+
 	async openFolder(): Promise<FileSystemDirectoryHandle> {
 		try {
 			const handle = await window.showDirectoryPicker();
-			this.folderHandle = handle;
-
-			if (this.worker) {
-				this.worker.postMessage({
-					type: "setFolder",
-					handle,
-					messageId: "initial",
-				});
-			}
-
+			await this.setFolderHandle(handle);
 			return handle;
 		} catch (error) {
 			console.error("Error opening folder:", error);

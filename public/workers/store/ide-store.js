@@ -9,7 +9,8 @@ export const useIDEStore = create()(persist((set, get) => ({
     showFileContent: true,
     showTerminal: true,
     showCodex: true,
-    editorTheme: "Twilight", // Default theme
+    editorTheme: "Twilight", // Default theme matching FileMonacoEditor
+    monacoThemes: {},
     projects: [],
     activeProject: null,
     // Actions
@@ -20,6 +21,23 @@ export const useIDEStore = create()(persist((set, get) => ({
     toggleTerminal: () => set((state) => ({ showTerminal: !state.showTerminal })),
     toggleCodex: () => set((state) => ({ showCodex: !state.showCodex })),
     setEditorTheme: (theme) => set({ editorTheme: theme }),
+    addMonacoTheme: (themeName, themeData) => set((state) => {
+        const themeId = themeName.toLowerCase().replace(/[^a-z0-9]/g, "-");
+        return {
+            monacoThemes: {
+                ...state.monacoThemes,
+                [themeName]: {
+                    id: themeId,
+                    data: themeData,
+                    isLoaded: true,
+                },
+            },
+        };
+    }),
+    isThemeLoaded: (themeName) => {
+        const theme = get().monacoThemes[themeName];
+        return Boolean(theme?.isLoaded);
+    },
     addProject: (projectPath) => set((state) => {
         const projectName = projectPath.split("/").pop() || projectPath;
         const newProject = { path: projectPath, name: projectName };
