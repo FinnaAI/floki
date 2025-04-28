@@ -10,7 +10,7 @@ import {
 } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Power, Square, Trash } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 import { CommandInput } from "./CommandInput";
 import { EnvVarForm } from "./EnvVarForm";
 import { MessageList } from "./MessageList";
@@ -18,10 +18,31 @@ import { useEnvVars } from "./useEnvVars";
 import { useWebSocket } from "./useWebSocket";
 
 export interface ChatMessage {
-	type: "user" | "system" | "assistant" | "reasoning";
+	type:
+		| "user"
+		| "system"
+		| "assistant"
+		| "reasoning"
+		| "function_call"
+		| "function_output"
+		| "query";
 	content: string | React.ReactNode;
 	timestamp: Date;
 	id?: string;
+	role?: "user" | "assistant" | "system";
+	status?: "completed" | "in_progress" | "error";
+	summary?: { type: string; text: string }[];
+	duration_ms?: number;
+	function_data?: {
+		name?: string;
+		arguments?: Record<string, unknown>;
+		call_id?: string;
+		output?: Record<string, unknown> | string;
+		metadata?: {
+			exit_code?: number;
+			duration_seconds?: number;
+		};
+	};
 }
 
 export function Codex() {
@@ -30,6 +51,9 @@ export function Codex() {
 	const scrollAreaRef = useRef<HTMLDivElement>(null);
 	const [codexMode, setCodexMode] = useState(true);
 	const [showSettings, setShowSettings] = useState(false);
+	const [model, setModel] = useState("o4-mini");
+	const [provider, setProvider] = useState("openai");
+
 	// Custom hooks
 	const { connected, messages, sendCommand, connectWebSocket, clearMessages } =
 		useWebSocket();
@@ -37,7 +61,7 @@ export function Codex() {
 	const { envVars, addEnvVar, applyEnvVars } = useEnvVars();
 
 	// Auto-scroll to bottom of chat when messages change
-	useEffect(() => {
+	useLayoutEffect(() => {
 		if (scrollAreaRef.current) {
 			const scrollContainer = scrollAreaRef.current.querySelector(
 				"[data-radix-scroll-area-viewport]",
@@ -46,7 +70,17 @@ export function Codex() {
 				scrollContainer.scrollTop = scrollContainer.scrollHeight;
 			}
 		}
-	}, []); // Update scroll when messages change
+	}); // Always run after each render
+
+	// Handle model change
+	const handleModelChange = (newModel: string) => {
+		setModel(newModel);
+	};
+
+	// Handle provider change
+	const handleProviderChange = (newProvider: string) => {
+		setProvider(newProvider);
+	};
 
 	// Handle sending command
 	const handleSendCommand = (e: React.KeyboardEvent) => {
@@ -101,7 +135,7 @@ export function Codex() {
 
 		// Add codex prefix if codex mode is enabled
 		if (codexMode && !processedCommand.startsWith("codex")) {
-			processedCommand = `codex -q "${processedCommand}"`;
+			processedCommand = `codex -m ${model} --provider ${provider} -q "${processedCommand}"`;
 		}
 
 		// Send command to WebSocket
@@ -153,6 +187,8 @@ export function Codex() {
 							onKeyDown={handleSendCommand}
 							connected={connected}
 							placeholder="Enter message for Codex..."
+							onModelChange={handleModelChange}
+							onProviderChange={handleProviderChange}
 						/>
 						<Button
 							variant="destructive"

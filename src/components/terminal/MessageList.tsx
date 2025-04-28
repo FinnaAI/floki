@@ -4,6 +4,12 @@ import { AssistantMessage } from "./messages/AssistantMessage";
 import { ReasoningMessage } from "./messages/ReasoningMessage";
 import { SystemMessage } from "./messages/SystemMessage";
 import { UserMessage } from "./messages/UserMessage";
+import {
+	CodexFunctionCall,
+	CodexFunctionOutput,
+	CodexQueryMessage,
+	CodexReasoningMessage,
+} from "./messages/codex";
 import type { EnvVar } from "./useEnvVars";
 
 interface MessageListProps {
@@ -94,10 +100,47 @@ export function MessageList({ messages, envVars }: MessageListProps) {
 						);
 
 					case "reasoning":
+						// Check if it's a codex reasoning message with summary
+						if (message.summary) {
+							return (
+								<CodexReasoningMessage
+									key={messageKey}
+									data={message}
+									dateTime={dateTime}
+								/>
+							);
+						}
 						return (
 							<ReasoningMessage
 								key={messageKey}
 								message={message}
+								dateTime={dateTime}
+							/>
+						);
+						
+					case "function_call":
+						return (
+							<CodexFunctionCall
+								key={messageKey}
+								data={message}
+								dateTime={dateTime}
+							/>
+						);
+						
+					case "function_output":
+						return (
+							<CodexFunctionOutput
+								key={messageKey}
+								data={message}
+								dateTime={dateTime}
+							/>
+						);
+						
+					case "query":
+						return (
+							<CodexQueryMessage
+								key={messageKey}
+								query={String(message.content)}
 								dateTime={dateTime}
 							/>
 						);
