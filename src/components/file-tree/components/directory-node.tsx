@@ -58,11 +58,16 @@ export const DirectoryNode = memo(
 					try {
 						const fileStore = useFileStore.getState();
 						await fileStore.loadDirectoryChildren(directory.path);
+						setIsExpanded(true);
+					} catch (error) {
+						console.error("Error loading directory:", error);
+						// Don't expand on error
 					} finally {
 						setLoading(false);
 					}
+				} else {
+					setIsExpanded(false);
 				}
-				setIsExpanded(!isExpanded);
 			},
 			[directory.path, isExpanded],
 		);

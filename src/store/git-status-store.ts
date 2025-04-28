@@ -210,11 +210,11 @@ export const useGitStatusStore = create<GitStatusState>((set, get) => {
 				}
 
 				// For debugging
-				console.log(`[GitStatus] Finding status for file: ${filePath}`);
-				console.log(`[GitStatus]   - Current git path: ${currentPath}`);
-				console.log(
-					`[GitStatus]   - Calculated relative path: ${relativePath}`,
-				);
+				// console.log(`[GitStatus] Finding status for file: ${filePath}`);
+				// console.log(`[GitStatus]   - Current git path: ${currentPath}`);
+				// console.log(
+				// 	`[GitStatus]   - Calculated relative path: ${relativePath}`,
+				// );
 			} catch (error) {
 				console.error(
 					`Error calculating relative path for ${filePath}:`,
@@ -345,7 +345,7 @@ export const useGitStatusStore = create<GitStatusState>((set, get) => {
 					const handle = useFileStore.getState().projectHandles[currentPath];
 					if (handle) {
 						apiPath = handle.name; // Use the handle name which contains the OS path
-						console.log("[GitStore] Using handle name as path:", apiPath);
+						// console.log("[GitStore] Using handle name as path:", apiPath);
 					}
 				}
 
@@ -362,7 +362,7 @@ export const useGitStatusStore = create<GitStatusState>((set, get) => {
 				}
 
 				const data: GitStatus = await response.json();
-				console.log("[GitStore] Git status fetched manually:", data);
+				// console.log("[GitStore] Git status fetched manually:", data);
 				set({ gitStatus: data, error: undefined });
 				return data;
 			} catch (error) {
@@ -379,7 +379,7 @@ export const useGitStatusStore = create<GitStatusState>((set, get) => {
 
 		cleanup: () => {
 			if (gitStatusWorker) {
-				console.log("[GitStore] Cleaning up git status worker");
+				// console.log("[GitStore] Cleaning up git status worker");
 				gitStatusWorker.postMessage({ type: "stopPolling" });
 				gitStatusWorker.terminate();
 				gitStatusWorker = null;
@@ -387,7 +387,7 @@ export const useGitStatusStore = create<GitStatusState>((set, get) => {
 
 			// Also clear the interval if it exists
 			if (gitStatusPollIntervalId !== null) {
-				console.log("[GitStore] Clearing polling interval");
+				// console.log("[GitStore] Clearing polling interval");
 				clearInterval(gitStatusPollIntervalId);
 				gitStatusPollIntervalId = null;
 			}
@@ -402,7 +402,7 @@ export const useGitStatusStore = create<GitStatusState>((set, get) => {
 		},
 
 		setupFallbackPolling: () => {
-			console.log("[GitStore] Setting up fallback polling");
+			// console.log("[GitStore] Setting up fallback polling");
 			// Don't set up polling if we already have it active or if worker is running
 			if (get().isPolling || gitStatusWorker) return;
 
