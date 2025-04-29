@@ -1,6 +1,7 @@
 import "@/styles/globals.css";
 
 import { FileStoreInitializer } from "@/components/file-store-initializer";
+import { env } from "@/env";
 import type { Metadata } from "next";
 import { Geist } from "next/font/google";
 import { Toaster } from "sonner";
@@ -22,10 +23,12 @@ export default function RootLayout({
 	return (
 		<html lang="en" className={`${geist.variable}`}>
 			<head>
-				<script
-					crossOrigin="anonymous"
-					src="//unpkg.com/react-scan/dist/auto.global.js"
-				/>
+				{env.NODE_ENV === "development" && (
+					<script
+						crossOrigin="anonymous"
+						src="//unpkg.com/react-scan/dist/auto.global.js"
+					/>
+				)}
 			</head>
 			<body className="dark">
 				<FileStoreInitializer />
