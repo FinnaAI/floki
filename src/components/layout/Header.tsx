@@ -5,7 +5,8 @@ import { motion } from "motion/react";
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-
+import { SocialIcon } from "react-social-icons";
+import { Button } from "../ui/button";
 const navItems = [
 	// { name: "Go to app", href: "/ide" },
 	// { name: "Recipes", href: "/recipes" },
@@ -70,6 +71,20 @@ export default function Header({ className }: { className?: string }) {
 							</Link>
 						</motion.div>
 					))}
+					<Button variant="" asChild>
+						<Link
+							href="https://x.com/flokiii_ide"
+							target="_blank"
+							rel="noopener noreferrer"
+						>
+							Follow on{" "}
+							<SocialIcon
+								className="h-4 w-4"
+								network="x"
+								style={{ height: 25, width: 25 }}
+							/>
+						</Link>
+					</Button>
 				</nav>
 
 				{/* <div className="flex items-center gap-4">

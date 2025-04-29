@@ -7,6 +7,8 @@ import {
 } from "@radix-ui/react-tooltip";
 import * as motion from "motion/react-client";
 import Image from "next/image";
+import Link from "next/link";
+import { Button } from "../ui/button";
 
 export function Hero() {
 	const codingAgents = [
@@ -185,9 +187,18 @@ export function Hero() {
 						</div>
 					</motion.div>
 
-					<div className="flex w-full justify-center">
+					<div className="flex w-full flex-col items-center justify-center gap-4">
 						{/* <ClientTweet id="1914701646099021969" /> */}
 						<Waitlist />
+						<Button variant="outline" asChild>
+							<Link
+								href="https://x.com/flokiii_ide"
+								target="_blank"
+								rel="noopener noreferrer"
+							>
+								and follow the journey
+							</Link>
+						</Button>
 					</div>
 				</div>
 			</div>
