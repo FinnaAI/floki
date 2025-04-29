@@ -94,6 +94,13 @@ async function listFilesNonRecursively(dirPath = "") {
     }
     return files;
 }
+const hasFileBeenModified = (cached, file) => {
+    if (!cached)
+        return true;
+    if (!cached.lastModified || !file.lastModified || !cached.size || !file.size)
+        return true;
+    return cached.lastModified.getTime() !== file.lastModified.getTime() || cached.size !== file.size;
+};
 async function detectChanges(path) {
     console.log("[Worker] Detecting changes for path:", path);
     if (!folderHandle)
@@ -105,10 +112,15 @@ async function detectChanges(path) {
     for (const file of newFiles) {
         const cached = fileCache.get(file.path);
         newCache.set(file.path, file);
-        if (!cached ||
-            cached.lastModified.getTime() !== file.lastModified.getTime() ||
-            cached.size !== file.size) {
-            console.log("[Worker] Change detected for file:", file.path);
+        // Don't report top-level directories as changed unless they're new
+        if (file.isDirectory && file.path.split('/').filter(Boolean).length === 1) {
+            if (!cached) {
+                changes.push(file); // Only report if it's brand new
+            }
+            continue;
+        }
+        // Check if file has been modified using type guard
+        if (hasFileBeenModified(cached, file)) {
             changes.push(file);
         }
     }

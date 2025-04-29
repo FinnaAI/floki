@@ -133,6 +133,12 @@ async function listFilesNonRecursively(dirPath = ""): Promise<FileInfo[]> {
 	return files;
 }
 
+const hasFileBeenModified = (cached: FileInfo | undefined, file: FileInfo): boolean => {
+	if (!cached) return true;
+	if (!cached.lastModified || !file.lastModified || !cached.size || !file.size) return true;
+	return cached.lastModified.getTime() !== file.lastModified.getTime() || cached.size !== file.size;
+};
+
 async function detectChanges(path: string): Promise<FileInfo[]> {
 	console.log("[Worker] Detecting changes for path:", path);
 	if (!folderHandle) return [];
@@ -154,8 +160,8 @@ async function detectChanges(path: string): Promise<FileInfo[]> {
 			continue;
 		}
 
-		// Existing change detection logic for files
-		if (!cached || cached.lastModified.getTime() !== file.lastModified.getTime() || cached.size !== file.size) {
+		// Check if file has been modified using type guard
+		if (hasFileBeenModified(cached, file)) {
 			changes.push(file);
 		}
 	}

@@ -564,7 +564,7 @@ export const useFileStore = create<FileState>()((set, get): FileState => ({
 		const changedFiles = await fileSystem.listFiles(currentPath || "", false);
 		
 		// Simple hash function to compare arrays
-		const fileHash = (files) => files.map(f => `${f.path}:${f.size}:${f.lastModified.getTime()}`).sort().join('|');
+		const fileHash = (files: FileInfo[]) => files.map(f => `${f.path}:${f.size}:${f.lastModified.getTime()}`).sort().join('|');
 		
 		// Only reload if actual changes detected
 		if (fileHash(changedFiles) !== fileHash(files)) {

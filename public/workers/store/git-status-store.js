@@ -1,6 +1,7 @@
 import path from "path";
 import { useFileStore } from "@/store/file-store";
 import { create } from "zustand";
+import { subscribeWithSelector } from 'zustand/middleware';
 // Global interval storage
 let gitStatusPollIntervalId = null;
 // Constants
@@ -45,7 +46,8 @@ const initWorker = (get) => {
         return null;
     }
 };
-export const useGitStatusStore = create((set, get) => {
+// Create the store with subscribeWithSelector
+export const useGitStatusStore = create()(subscribeWithSelector((set, get) => {
     // Initialize worker if we're in the browser
     if (typeof window !== "undefined") {
         // Add unload listener
@@ -60,7 +62,17 @@ export const useGitStatusStore = create((set, get) => {
                 const { type, status, error } = event.data;
                 console.log("[GitStore] Received worker message:", type);
                 if (type === "gitStatusUpdate") {
-                    set({ gitStatus: status, error: undefined });
+                    const now = Date.now();
+                    if (now - lastUpdateTime > 1000) { // Limit to once per second
+                        lastUpdateTime = now;
+                        set(state => {
+                            // Only update if data actually changed
+                            if (JSON.stringify(state.gitStatus) !== JSON.stringify(status)) {
+                                return { gitStatus: status, error: undefined };
+                            }
+                            return {}; // No change needed
+                        });
+                    }
                 }
                 else if (type === "gitStatusError") {
                     console.error("[GitStore] Worker reported error:", error);
@@ -153,9 +165,11 @@ export const useGitStatusStore = create((set, get) => {
                     relativePath = path.basename(filePath);
                 }
                 // For debugging
-                console.log(`[GitStatus] Finding status for file: ${filePath}`);
-                console.log(`[GitStatus]   - Current git path: ${currentPath}`);
-                console.log(`[GitStatus]   - Calculated relative path: ${relativePath}`);
+                // console.log(`[GitStatus] Finding status for file: ${filePath}`);
+                // console.log(`[GitStatus]   - Current git path: ${currentPath}`);
+                // console.log(
+                // 	`[GitStatus]   - Calculated relative path: ${relativePath}`,
+                // );
             }
             catch (error) {
                 console.error(`Error calculating relative path for ${filePath}:`, error);
@@ -258,18 +272,24 @@ export const useGitStatusStore = create((set, get) => {
                     const handle = useFileStore.getState().projectHandles[currentPath];
                     if (handle) {
                         apiPath = handle.name; // Use the handle name which contains the OS path
-                        console.log("[GitStore] Using handle name as path:", apiPath);
+                        // console.log("[GitStore] Using handle name as path:", apiPath);
                     }
                 }
                 // Add showVirtualPaths=true to return both real and virtual paths
-                const response = await fetch(`/api/git/status?path=${encodeURIComponent(apiPath)}&showVirtualPaths=true`);
+                const response = await fetch(`/api/git/status?path=${encodeURIComponent(apiPath)}&showVirtualPaths=false`);
                 if (!response.ok) {
                     const errorText = await response.text();
                     throw new Error(`Failed to fetch git status: ${response.status} ${errorText}`);
                 }
                 const data = await response.json();
-                console.log("[GitStore] Git status fetched manually:", data);
-                set({ gitStatus: data, error: undefined });
+                // console.log("[GitStore] Git status fetched manually:", data);
+                set(state => {
+                    // Only update if data actually changed
+                    if (JSON.stringify(state.gitStatus) !== JSON.stringify(data)) {
+                        return { gitStatus: data, error: undefined };
+                    }
+                    return {}; // No change needed
+                });
                 return data;
             }
             catch (error) {
@@ -284,14 +304,14 @@ export const useGitStatusStore = create((set, get) => {
         },
         cleanup: () => {
             if (gitStatusWorker) {
-                console.log("[GitStore] Cleaning up git status worker");
+                // console.log("[GitStore] Cleaning up git status worker");
                 gitStatusWorker.postMessage({ type: "stopPolling" });
                 gitStatusWorker.terminate();
                 gitStatusWorker = null;
             }
             // Also clear the interval if it exists
             if (gitStatusPollIntervalId !== null) {
-                console.log("[GitStore] Clearing polling interval");
+                // console.log("[GitStore] Clearing polling interval");
                 clearInterval(gitStatusPollIntervalId);
                 gitStatusPollIntervalId = null;
             }
@@ -303,7 +323,7 @@ export const useGitStatusStore = create((set, get) => {
             set({ isPolling: false, gitStatus: null });
         },
         setupFallbackPolling: () => {
-            console.log("[GitStore] Setting up fallback polling");
+            // console.log("[GitStore] Setting up fallback polling");
             // Don't set up polling if we already have it active or if worker is running
             if (get().isPolling || gitStatusWorker)
                 return;
@@ -324,4 +344,36 @@ export const useGitStatusStore = create((set, get) => {
             set({ isPolling: true });
         },
     };
+}));
+// Selectors
+export const selectGitStatus = (state) => state.gitStatus;
+export const selectShowGitStatus = (state) => state.showGitStatus;
+export const selectCurrentPath = (state) => state.currentPath;
+export const selectShowIgnoredFiles = (state) => state.showIgnoredFiles;
+// Commonly used combinations
+export const selectGitStatusInfo = (state) => ({
+    gitStatus: state.gitStatus,
+    showGitStatus: state.showGitStatus,
+    currentPath: state.currentPath,
 });
+export const selectGitStatusUtils = (state) => ({
+    isIgnored: state.isIgnored,
+    getFileStatus: state.getFileStatus,
+    showIgnoredFiles: state.showIgnoredFiles,
+});
+// Actions for direct state updates
+export const gitStatusActions = {
+    toggleGitStatus: () => useGitStatusStore.getState().toggleGitStatus(),
+    setCurrentPath: (path) => useGitStatusStore.getState().setCurrentPath(path),
+    fetchGitStatus: (directoryPath) => useGitStatusStore.getState().fetchGitStatus(directoryPath),
+    cleanup: () => useGitStatusStore.getState().cleanup(),
+    toggleShowIgnoredFiles: () => useGitStatusStore.getState().toggleShowIgnoredFiles(),
+    setupFallbackPolling: () => useGitStatusStore.getState().setupFallbackPolling(),
+    getFileStatus: (filePath) => useGitStatusStore.getState().getFileStatus(filePath),
+    isIgnored: (filePath) => useGitStatusStore.getState().isIgnored(filePath),
+    get showGitStatus() {
+        return useGitStatusStore.getState().showGitStatus;
+    }
+};
+// Add throttling to prevent rapid status updates
+let lastUpdateTime = 0;

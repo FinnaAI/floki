@@ -1,10 +1,10 @@
 "use client";
 
-import { useEffect, useRef } from "react";
-import type { Terminal } from "xterm";
+import type { FitAddon } from "@xterm/addon-fit";
+import type { Terminal } from "@xterm/xterm";
 // eslint-disable-next-line import/no-extraneous-dependencies
-import type { IDisposable } from "xterm";
-import type { FitAddon } from "xterm-addon-fit";
+import type { IDisposable } from "@xterm/xterm";
+import { useEffect, useRef } from "react";
 import { useEnvVars } from "./useEnvVars";
 
 interface TerminalComponentProps {
@@ -59,9 +59,9 @@ export function TerminalComponent({
 				terminalRef.current.style.overflow = "hidden";
 
 				// Dynamically import modules on client side
-				const { Terminal } = await import("xterm");
-				const { FitAddon } = await import("xterm-addon-fit");
-				const { WebLinksAddon } = await import("xterm-addon-web-links");
+				const { Terminal } = await import("@xterm/xterm");
+				const { FitAddon } = await import("@xterm/addon-fit");
+				const { WebLinksAddon } = await import("@xterm/addon-web-links");
 
 				// Dynamic import for CSS
 				try {
