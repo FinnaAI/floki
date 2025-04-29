@@ -9,7 +9,7 @@
   "main": "dist/main/main.js",
   "scripts": {
     "dev": "next dev",
-    "build": "pnpm build:workers && next build",
+    "build": "pnpm workers:build && next build",
     "start": "next start",
     "postinstall": "#prisma generate",
     "typecheck": "tsc --noEmit",
