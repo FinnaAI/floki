@@ -1,3 +1,4 @@
+import { Waitlist } from "@clerk/nextjs";
 import {
 	Tooltip,
 	TooltipContent,
@@ -6,8 +7,6 @@ import {
 } from "@radix-ui/react-tooltip";
 import * as motion from "motion/react-client";
 import Image from "next/image";
-import Link from "next/link";
-import { ClientTweet } from "./client-tweet";
 
 export function Hero() {
 	const codingAgents = [
@@ -33,7 +32,7 @@ export function Hero() {
 		<section className="relative flex h-full w-full items-center">
 			{/* Background */}
 			<div className="absolute inset-0 bg-gradient-to-b from-background via-background to-secondary/10">
-				<div className="absolute inset-0 bg-grid-pattern opacity-[0.03]" />
+				<div className="absolute inset-0" />
 			</div>
 
 			{/* Animated gradients */}
@@ -79,12 +78,12 @@ export function Hero() {
 							Development Environment
 						</h1>
 
-						<p className="mb-8 text-muted-foreground text-xl md:text-2xl">
+						<p className="mb-8 text-foreground text-xl md:text-2xl">
 							Build better software, faster with AI-powered assistance
 						</p>
 
 						<div className="mb-12 flex flex-col justify-center gap-4 sm:flex-row">
-							<motion.div
+							{/* <motion.div
 								whileHover={{ scale: 1.05 }}
 								whileTap={{ scale: 0.95 }}
 							>
@@ -110,9 +109,9 @@ export function Hero() {
 										<path d="m12 5 7 7-7 7" />
 									</svg>
 								</Link>
-							</motion.div>
+							</motion.div> */}
 
-							<motion.div
+							{/* <motion.div
 								whileHover={{ scale: 1.05 }}
 								whileTap={{ scale: 0.95 }}
 							>
@@ -138,11 +137,11 @@ export function Hero() {
 									</svg>
 									GitHub
 								</Link>
-							</motion.div>
+							</motion.div> */}
 						</div>
 
 						<div>
-							<p className="mb-4 text-muted-foreground text-sm">
+							<p className="mb-4 text-foreground text-sm">
 								Powered by leading AI models:
 							</p>
 							<div className="flex flex-wrap justify-center gap-6">
@@ -187,7 +186,8 @@ export function Hero() {
 					</motion.div>
 
 					<div className="flex w-full justify-center">
-						<ClientTweet id="1914701646099021969" />
+						{/* <ClientTweet id="1914701646099021969" /> */}
+						<Waitlist />
 					</div>
 				</div>
 			</div>
