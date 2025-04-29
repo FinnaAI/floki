@@ -1,12 +1,10 @@
 "use client";
 
 import { cn } from "@/lib/utils";
-import { Waitlist } from "@clerk/nextjs";
 import { motion } from "motion/react";
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Button } from "../ui/button";
 
 const navItems = [
 	// { name: "Go to app", href: "/ide" },
@@ -46,7 +44,6 @@ export default function Header({ className }: { className?: string }) {
 				</motion.div>
 
 				<nav className="hidden items-center gap-8 md:flex">
-					<Button variant="default"></Button>
 					{navItems.map((item, i) => (
 						<motion.div
 							key={item.name}
