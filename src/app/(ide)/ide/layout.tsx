@@ -25,9 +25,12 @@ export default function IDELayout({
 	terminal: ReactNode;
 	agent: ReactNode;
 }) {
-	const { loadDirectory } = useFileStore(useShallow(state => ({
+	const { loadDirectory, filteredFiles, searchQuery } = useFileStore(useShallow(state => ({
 		loadDirectory: state.loadDirectory,
+		filteredFiles: state.filteredFiles,
+		searchQuery: state.searchQuery,
 	})));
+
 
 	const { projects, activeProject, removeProject, setActiveProject } =
 		useIDEStore(useShallow(state => ({
@@ -115,6 +118,10 @@ export default function IDELayout({
 					</ResizablePanel>
 				</ResizablePanelGroup>
 			</IDEHeader>
+			<div className="border-slate-200 border-t bg-slate-100 px-4 text-slate-500 text-xs dark:border-slate-700 dark:bg-slate-800 dark:text-slate-400">
+				{filteredFiles.length} items
+				{searchQuery && " (filtered)"}
+			</div>
 		</div>
 	);
 }
