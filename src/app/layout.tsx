@@ -3,6 +3,7 @@ import "@/styles/globals.css";
 import { FileStoreInitializer } from "@/components/file-store-initializer";
 import type { Metadata } from "next";
 import { Geist } from "next/font/google";
+import { Toaster } from "sonner";
 
 export const metadata: Metadata = {
 	title: "Floki",
@@ -29,6 +30,7 @@ export default function RootLayout({
 			<body className="dark">
 				<FileStoreInitializer />
 				{children}
+				<Toaster />
 			</body>
 		</html>
 	);

@@ -61,6 +61,7 @@ export const useMonaco = ({
 				"toml",
 				"yaml",
 				"yml",
+				"prisma"
 			] as const satisfies Parameters<typeof createHighlighter>[0]["langs"];
 
 			for (const lang of ADDITIONAL_LANGUAGES) {
