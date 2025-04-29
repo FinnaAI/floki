@@ -27,6 +27,7 @@ function TabsList({
 			data-slot="tabs-list"
 			className={cn(
 				"inline-flex h-9 w-fit items-center justify-center rounded-lg bg-muted p-[3px] text-muted-foreground",
+				"scrollbar-none [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
 				className,
 			)}
 			{...props}

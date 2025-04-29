@@ -36,7 +36,7 @@ const loadAvailableThemes = async () => {
 		return data.themes as string[];
 	} catch (error) {
 		console.error("Failed to load available themes:", error);
-		return ["OneDark-Pro"]; // Fallback to default theme
+		return ["Twilight"]; // Fallback to default theme
 	}
 };
 
@@ -60,7 +60,7 @@ export const FileMonacoEditor = React.memo(
 	}: FileMonacoEditorProps) => {
 		const [isEditing, setIsEditing] = useState(false);
 		const [availableThemes, setAvailableThemes] = useState<string[]>([]);
-		const [editorTheme, setEditorTheme] = useState("OneDark-Pro");
+		const [editorTheme, setEditorTheme] = useState("Twilight");
 		const [localContent, setLocalContent] = useState(fileContent);
 		const [isDirty, setIsDirty] = useState(false);
 

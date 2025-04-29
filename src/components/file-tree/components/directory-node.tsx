@@ -6,7 +6,7 @@ import {
 	ContextMenuSeparator,
 	ContextMenuTrigger,
 } from "@/components/ui/context-menu";
-import { getFileIcon } from "@/lib/file-utils";
+import { getFileIcon, getFolderIcon } from "@/lib/file-utils";
 import { cn } from "@/lib/utils";
 import { useDirectoryTreeStore } from "@/store/directory-tree-store";
 import { useFileStore } from "@/store/file-store";
@@ -17,7 +17,6 @@ import {
 	ChevronRight,
 	FilePlus,
 	Folder,
-	FolderOpen,
 	FolderPlus,
 	Pencil,
 } from "lucide-react";
@@ -60,40 +59,40 @@ export const DirectoryNode = memo(
 
 		// Get directory data from the tree structure
 		const dirData = useFileStore(
-			useShallow(state => {
+			useShallow((state) => {
 				// Get the directory's path segments
-				const pathParts = directory.path.split('/').filter(Boolean);
-				
+				const pathParts = directory.path.split("/").filter(Boolean);
+
 				// Start at the root of the tree
 				let node = state.tree;
-				
+
 				// If we're at root or tree is not available, return minimal data
 				if (pathParts.length === 0 || !node) {
-					return { 
+					return {
 						node,
 						isIgnored: state.isIgnored,
-						getFileStatus: state.getFileStatus
+						getFileStatus: state.getFileStatus,
 					};
 				}
-				
+
 				// Traverse the tree to find this directory's node
 				for (const part of pathParts) {
 					if (!node || !node.children[part]) {
-						return { 
+						return {
 							node: null,
 							isIgnored: state.isIgnored,
-							getFileStatus: state.getFileStatus
+							getFileStatus: state.getFileStatus,
 						};
 					}
 					node = node.children[part];
 				}
-				
-				return { 
+
+				return {
 					node,
 					isIgnored: state.isIgnored,
-					getFileStatus: state.getFileStatus
+					getFileStatus: state.getFileStatus,
 				};
-			})
+			}),
 		);
 
 		const handleToggle = useCallback(async () => {
@@ -133,10 +132,14 @@ export const DirectoryNode = memo(
 			// Extract children from the tree node
 			for (const [name, childNode] of Object.entries(dirData.node.children)) {
 				// Skip ignored files unless showIgnoredFiles is true
-				if (childNode.file && !showIgnoredFiles && dirData.isIgnored(childNode.file.path)) {
+				if (
+					childNode.file &&
+					!showIgnoredFiles &&
+					dirData.isIgnored(childNode.file.path)
+				) {
 					continue;
 				}
-				
+
 				if (childNode.file) {
 					if (childNode.file.isDirectory) {
 						childDirs.push(childNode.file);
@@ -158,13 +161,13 @@ export const DirectoryNode = memo(
 		// If we don't have the tree data yet, use a fallback to keep things working
 		// This can happen during initial load or if we haven't built the tree yet
 		const shouldFallbackToLegacyMethod = !dirData.node && allFiles.length > 0;
-		
+
 		// Legacy method as fallback - only used if tree data is not available
 		const legacyChildrenData = useMemo(() => {
 			if (!shouldFallbackToLegacyMethod) {
 				return { childDirs: [], childFiles: [] };
 			}
-			
+
 			const childDirs: typeof allFiles = [];
 			const childFiles: typeof allFiles = [];
 			const basePathWithSlash = `${directory.path}/`;
@@ -172,7 +175,7 @@ export const DirectoryNode = memo(
 			for (const file of allFiles) {
 				if (file.path === directory.path) continue;
 				if (!file.path.startsWith(basePathWithSlash)) continue;
-				
+
 				// Skip ignored files unless showIgnoredFiles is true
 				if (!showIgnoredFiles && isIgnored(file.path)) continue;
 
@@ -206,11 +209,21 @@ export const DirectoryNode = memo(
 			childFiles.sort((a, b) => a.name.localeCompare(b.name));
 
 			return { childDirs, childFiles };
-		}, [shouldFallbackToLegacyMethod, allFiles, directory.path, isIgnored, showIgnoredFiles]);
+		}, [
+			shouldFallbackToLegacyMethod,
+			allFiles,
+			directory.path,
+			isIgnored,
+			showIgnoredFiles,
+		]);
 
 		// Use the appropriate data source
-		const finalChildDirs = shouldFallbackToLegacyMethod ? legacyChildrenData.childDirs : childDirs;
-		const finalChildFiles = shouldFallbackToLegacyMethod ? legacyChildrenData.childFiles : childFiles;
+		const finalChildDirs = shouldFallbackToLegacyMethod
+			? legacyChildrenData.childDirs
+			: childDirs;
+		const finalChildFiles = shouldFallbackToLegacyMethod
+			? legacyChildrenData.childFiles
+			: childFiles;
 
 		return (
 			<ContextMenu>
@@ -243,10 +256,8 @@ export const DirectoryNode = memo(
 							<div className="h-auto p-0">
 								{loading ? (
 									<div className="h-4 w-4 animate-spin rounded-full border-border border-b-2" />
-								) : isExpanded ? (
-									<FolderOpen className="h-4 w-4 text-amber-500" />
 								) : (
-									<Folder className="h-4 w-4 text-amber-500" />
+									getFolderIcon(isExpanded, directory.name)
 								)}
 							</div>
 							{isRenaming ? (
@@ -398,7 +409,7 @@ export const DirectoryNode = memo(
 		// Optimizing memo comparison by checking exactly what matters
 		return (
 			prev.directory.path === next.directory.path &&
-			prev.allFiles === next.allFiles && 
+			prev.allFiles === next.allFiles &&
 			prev.selectedFile?.path === next.selectedFile?.path &&
 			prev.showIgnoredFiles === next.showIgnoredFiles &&
 			prev.renameTarget === next.renameTarget &&

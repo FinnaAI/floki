@@ -1,11 +1,8 @@
 "use client";
-
-import Document from "@tiptap/extension-document";
-import Paragraph from "@tiptap/extension-paragraph";
-import Text from "@tiptap/extension-text";
 import { EditorContent, useEditor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
-import { marked } from "marked";
+import { Markdown } from "tiptap-markdown";
+
 interface TiptapViewerProps {
 	content: string;
 	className?: string;
@@ -16,7 +13,7 @@ const TiptapViewer = ({ content, className }: TiptapViewerProps) => {
 		extensions: [
 			StarterKit.configure({
 				heading: {
-					levels: [1, 2, 3],
+					levels: [1, 2, 3, 4, 5, 6],
 				},
 				paragraph: {
 					HTMLAttributes: {
@@ -24,12 +21,14 @@ const TiptapViewer = ({ content, className }: TiptapViewerProps) => {
 					},
 				},
 			}),
-			Document,
-			Paragraph,
-			Text,
+			Markdown.configure({
+				html: true,
+				transformPastedText: true,
+				transformCopiedText: true,
+				breaks: true,
+			}),
 		],
-		content: marked.parse(content),
-
+		content: content,
 		editable: false,
 		editorProps: {
 			attributes: {

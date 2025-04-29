@@ -57,7 +57,7 @@ export const EditorToolbar = React.memo(
 		}, [selectedFile?.path, currentPath]);
 
 		return (
-			<div className="flex h-9 items-center justify-between border-b px-1">
+			<div className="flex h-10 items-center justify-between border-b p-1 pb-2">
 				<div className="flex items-center px-4 text-sm">
 					{/* Edit toggle button */}
 					<button
@@ -113,7 +113,7 @@ export const EditorToolbar = React.memo(
 					)}
 				</div>
 
-				<div className="flex items-center gap-2">
+				<div className="m-1 flex items-center gap-1">
 					{/* Theme selector */}
 					<ThemeSelector
 						currentTheme={currentTheme}
@@ -122,9 +122,7 @@ export const EditorToolbar = React.memo(
 					/>
 
 					{/* Git Status Badge */}
-					{fileStatus && (
-						<GitStatusBadge status={fileStatus} />
-					)}
+					{fileStatus && <GitStatusBadge status={fileStatus} />}
 				</div>
 			</div>
 		);

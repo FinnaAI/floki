@@ -17,7 +17,7 @@ export const ThemeSelector = React.memo(
 	({ currentTheme, availableThemes, onThemeChange }: ThemeSelectorProps) => {
 		return (
 			<Select value={currentTheme} onValueChange={onThemeChange}>
-				<SelectTrigger className="h-7 text-xs">
+				<SelectTrigger className="my-0 h-6 px-2 text-xs">
 					<SelectValue placeholder="Select theme" />
 				</SelectTrigger>
 				<SelectContent>
