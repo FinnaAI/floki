@@ -607,10 +607,11 @@ export const useFileStore = create<FileState>()((set, get): FileState => ({
 	// Handle directory navigation for files
 	handleFileClick: (file: FileInfo) => {
 		const { loadDirectory, loadFileContent } = get();
-
+		
 		if (file.isDirectory) {
 			loadDirectory(file.path);
 		} else {
+			// Set the file tab and load the content
 			loadFileContent(file);
 		}
 	},

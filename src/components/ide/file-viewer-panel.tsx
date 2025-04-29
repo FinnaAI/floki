@@ -1,13 +1,14 @@
 "use client";
 
 import { FileMonacoEditor as FileViewer } from "@/components/editor/file-monaco-editor";
-// import { FileViewer } from "@/components/old/file-monaco-editor";
+import { FileTabs } from "@/components/ide/file-tabs";
 import { TiptapViewer } from "@/components/tiptap-editor";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useDebounce } from "@/hooks/use-debounce";
 import { createFileSystem } from "@/lib/file-system";
 import { useFileStore } from "@/store/file-store";
 import { useGitStatusStore } from "@/store/git-status-store";
+import { useIDEStore } from "@/store/ide-store";
 import type { FileDiff, FileInfo } from "@/types/files";
 import React, { useState, useMemo, useCallback, useEffect } from "react";
 import { toast } from "sonner";
@@ -225,8 +226,13 @@ const FileViewerContent = React.memo<FileViewerContentProps>(
 
 		return (
 			<div className="flex h-full flex-col overflow-hidden">
+				{/* File tabs bar */}
+				<div className="pt-1">
+					<FileTabs />
+				</div>
+				
 				{selectedFile && (
-					<div className="">
+					<div>
 						<Tabs
 							value={activeView}
 							onValueChange={(value) => onViewChange(value as ViewType)}
@@ -271,6 +277,7 @@ export const FileViewerPanel: React.FC = () => {
 		useFileStore();
 	const { gitStatus } = useGitStatusStore();
 	const [activeView, setActiveView] = useState<ViewType>("code");
+	const addFileTab = useIDEStore((state) => state.addFileTab);
 
 	// Memoize the onViewChange callback
 	const handleViewChange = useCallback((view: ViewType) => {
@@ -310,6 +317,16 @@ export const FileViewerPanel: React.FC = () => {
 		handleContentChange,
 		500,
 	);
+
+	// Add file to tabs when selected
+	useEffect(() => {
+		if (selectedFile && !selectedFile.isDirectory) {
+			addFileTab({
+				path: selectedFile.path,
+				name: selectedFile.name
+			});
+		}
+	}, [selectedFile, addFileTab]);
 
 	// Memoize the current file state to prevent changes when switching folders
 	const fileState = useMemo(
