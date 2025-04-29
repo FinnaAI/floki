@@ -1,3 +1,4 @@
+import { CommandDialogDemo } from "@/components/commandbar/commandbar";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { cookies } from "next/headers";
 import type { ReactNode } from "react";
@@ -14,6 +15,7 @@ export default async function IDELayout({ children }: { children: ReactNode }) {
 					{/* <StatusBar /> */}
 				</div>
 			</SidebarInset>
+			<CommandDialogDemo />
 		</SidebarProvider>
 	);
 }

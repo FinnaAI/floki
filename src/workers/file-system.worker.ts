@@ -117,15 +117,15 @@ async function listFilesNonRecursively(dirPath = ""): Promise<FileInfo[]> {
 	const files: FileInfo[] = [];
 
 	try {
-		console.log("[Worker] Starting to list directory contents");
+		// console.log("[Worker] Starting to list directory contents");
 		const handle = dirHandle as FileSystemDirectoryHandleWithValues;
 		for await (const entry of handle.values()) {
 			const entryPath = dirPath ? `${dirPath}/${entry.name}` : entry.name;
-			console.log("[Worker] Processing entry:", entryPath);
+			// console.log("[Worker] Processing entry:", entryPath);
 			const fileInfo = await getFileInfo(entry, entry.name, entryPath);
 			files.push(fileInfo);
 		}
-		console.log("[Worker] Found", files.length, "files in directory");
+		// console.log("[Worker] Found", files.length, "files in directory");
 	} catch (error) {
 		console.error("[Worker] Error listing files in", dirPath, ":", error);
 	}
