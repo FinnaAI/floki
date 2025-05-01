@@ -1,3 +1,4 @@
+import { env } from "@/env";
 import { Waitlist } from "@clerk/nextjs";
 import {
 	Tooltip,
@@ -85,33 +86,35 @@ export function Hero() {
 						</p>
 
 						<div className="mb-12 flex flex-col justify-center gap-4 sm:flex-row">
-							{/* <motion.div
-								whileHover={{ scale: 1.05 }}
-								whileTap={{ scale: 0.95 }}
-							>
-								<Link
-									href="/ide"
-									className="flex w-full items-center justify-center gap-2 rounded-lg bg-primary px-6 py-3 font-medium text-primary-foreground sm:w-auto"
+							{env.NODE_ENV === "development" && (
+								<motion.div
+									whileHover={{ scale: 1.05 }}
+									whileTap={{ scale: 0.95 }}
 								>
-									Try Now
-									<svg
-										xmlns="http://www.w3.org/2000/svg"
-										width="18"
-										height="18"
-										viewBox="0 0 24 24"
-										fill="none"
-										stroke="currentColor"
-										strokeWidth="2"
-										strokeLinecap="round"
-										strokeLinejoin="round"
-										aria-hidden="true"
+									<Link
+										href="/ide"
+										className="flex w-full items-center justify-center gap-2 rounded-lg bg-primary px-6 py-3 font-medium text-primary-foreground sm:w-auto"
 									>
-										<title>Arrow right</title>
-										<path d="M5 12h14" />
-										<path d="m12 5 7 7-7 7" />
-									</svg>
-								</Link>
-							</motion.div> */}
+										Try Now
+										<svg
+											xmlns="http://www.w3.org/2000/svg"
+											width="18"
+											height="18"
+											viewBox="0 0 24 24"
+											fill="none"
+											stroke="currentColor"
+											strokeWidth="2"
+											strokeLinecap="round"
+											strokeLinejoin="round"
+											aria-hidden="true"
+										>
+											<title>Arrow right</title>
+											<path d="M5 12h14" />
+											<path d="m12 5 7 7-7 7" />
+										</svg>
+									</Link>
+								</motion.div>
+							)}
 
 							{/* <motion.div
 								whileHover={{ scale: 1.05 }}

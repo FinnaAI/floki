@@ -60,6 +60,12 @@ export const MonacoWrapper = React.memo(
 
 		const { completion, complete } = useCompletion({
 			api: "/api/completion",
+			onFinish(prompt, completion) {
+				// console.log("onFinish", { prompt, completion });
+			},
+			onError(error) {
+				console.error("onError", error);
+			},
 		});
 
 		// Refs to manage fetching and timing of suggestions
@@ -126,6 +132,7 @@ export const MonacoWrapper = React.memo(
 				},
 			})
 				.then((newCompletion) => {
+					console.log("newCompletion", newCompletion);
 					if (newCompletion) {
 						// Construct a new suggestion object based on the API response
 						const newSuggestion = {
@@ -191,13 +198,21 @@ export const MonacoWrapper = React.memo(
 		// Handle editor changes, using debouncing for content updates
 		const handleEditorChange = useCallback(
 			(value: string) => {
+				// Start fetching suggestions as user types
 				startOrResetFetching();
-				// Use debounced content changes to prevent frequent saving
-				if (value) {
+
+				// Only trigger content saving if this is a substantial change
+				// This helps prevent auto-complete suggestions from triggering saves
+				const prevValue = editorRef.current?.getValue() || "";
+				const isSubstantialChange =
+					Math.abs(value.length - prevValue.length) > 2;
+
+				// Only save if there's content and it's a substantial change
+				if (value && isSubstantialChange) {
 					debouncedContentChange(value);
 				}
 			},
-			[startOrResetFetching, debouncedContentChange],
+			[startOrResetFetching, debouncedContentChange, editorRef],
 		);
 
 		// setup autocomplete
