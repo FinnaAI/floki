@@ -230,7 +230,7 @@ const FileViewerContent = React.memo<FileViewerContentProps>(
 				<div className="pt-1">
 					<FileTabs />
 				</div>
-				
+
 				{selectedFile && (
 					<div>
 						<Tabs
@@ -287,11 +287,21 @@ export const FileViewerPanel: React.FC = () => {
 	// Create the file content change handler
 	const handleContentChange = useCallback(
 		async (newContent: string) => {
-			if (!selectedFile) return;
+			if (!selectedFile || !selectedFile.path) return;
 
 			try {
 				// Show loading toast
 				toast.loading(`Saving ${selectedFile.name}...`);
+
+				// Make sure we have a valid folder path
+				const folderPath = selectedFile.path.split("/").slice(0, -1).join("/");
+				if (!folderPath) {
+					console.warn("Cannot save file: No valid folder path", selectedFile);
+					toast.error(
+						`Failed to save ${selectedFile.name}: No valid folder path`,
+					);
+					return;
+				}
 
 				// Save the file using the file system
 				await fileSystem.writeFile(selectedFile.path, newContent);
@@ -323,7 +333,7 @@ export const FileViewerPanel: React.FC = () => {
 		if (selectedFile && !selectedFile.isDirectory) {
 			addFileTab({
 				path: selectedFile.path,
-				name: selectedFile.name
+				name: selectedFile.name,
 			});
 		}
 	}, [selectedFile, addFileTab]);
